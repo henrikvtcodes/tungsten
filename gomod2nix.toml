@@ -1,0 +1,33 @@
+schema = 3
+
+[mod]
+  [mod."github.com/apple/pkl-go"]
+    version = "v0.10.0"
+    hash = "sha256-gJKyRgUAPpk0i+yLycE35AjRAS5bEyGEa50gRIRazM8="
+  [mod."github.com/inconshreveable/mousetrap"]
+    version = "v1.1.0"
+    hash = "sha256-XWlYH0c8IcxAwQTnIi6WYqq44nOKUylSWxWO/vi+8pE="
+  [mod."github.com/miekg/dns"]
+    version = "v1.1.65"
+    hash = "sha256-O/03heOio/2L5ixuWe0r9oB1D/7dtPq9PDdxoXq6o9E="
+  [mod."github.com/spf13/cobra"]
+    version = "v1.9.1"
+    hash = "sha256-dzEqquABE3UqZmJuj99244QjvfojS8cFlsPr/MXQGj0="
+  [mod."github.com/spf13/pflag"]
+    version = "v1.0.6"
+    hash = "sha256-NjrK0FZPIfO/p2xtL1J7fOBQNTZAPZOC6Cb4aMMvhxI="
+  [mod."golang.org/x/mod"]
+    version = "v0.24.0"
+    hash = "sha256-Lrl4RzOO0J/S5E+AQ7Y6yh8B9yygvZ2W0fsKEtBSYNU="
+  [mod."golang.org/x/net"]
+    version = "v0.35.0"
+    hash = "sha256-kCLhhvzHQCvUqC8kGhgMbVLUROG4ZeZNVGOVVv6tSAE="
+  [mod."golang.org/x/sync"]
+    version = "v0.11.0"
+    hash = "sha256-5ZBfDJvNaUBM4Vhk0fgYblCGL3eBxiJL85nIE8LiKl0="
+  [mod."golang.org/x/sys"]
+    version = "v0.30.0"
+    hash = "sha256-BuhWtwDkciVioc03rxty6G2vcZVnPX85lI7tgQOFVP8="
+  [mod."golang.org/x/tools"]
+    version = "v0.30.0"
+    hash = "sha256-BCkQRHaVsjATc5VaaIFGybAYsdijjoD2VqT5KQRLkoU="
