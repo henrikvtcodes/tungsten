@@ -5,3 +5,4 @@ import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
 
 name: String
 
+port: UInt16

@@ -1,3 +1,5 @@
 amends "./config/server-config.pkl"
 
 name = "Henrik"
+
+port = 65536 + 1
