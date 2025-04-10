@@ -13,9 +13,6 @@ var rootCmd = &cobra.Command{
   Long: `A highly programmable DNS server, written in Go and configured with Pkl.`,
 	DisableFlagsInUseLine: true,
 	SilenceUsage: true,
-  Run: func(cmd *cobra.Command, args []string) {
-    cmd.Help()
-  },
 }
 
 func Execute() {
