@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/henrikvtcodes/tungsten/config"
+	"github.com/henrikvtcodes/tungsten/util"
 	"github.com/spf13/cobra"
 )
 
@@ -18,14 +18,14 @@ func newServeCmd() *cobra.Command {
   Use:   "serve",
   Short: "Start up the Tungsten DNS server",
   Run: func(cmd *cobra.Command, args []string) {
-
 		conf, err := config.LoadFromPath(context.Background(), "./example.pkl")
 		if err != nil {
-			fmt.Println("Error loading config:", err)
+			println(err.Error())
+			util.Logger.Fatal().Msg("Error loading config")
 			os.Exit(1)
 		}
-
-    fmt.Println("Tungsten DNS Server. Hello %s!", conf.Name)
+		util.Logger.Info().Msg("Starting Tungsten DNS server...")
+		util.Logger.Info().Msgf("Loaded config: %s", conf)
   },
 }
 
