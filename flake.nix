@@ -27,12 +27,15 @@
         pkgs,
         system,
         ...
-      }: {
+      }: rec {
         packages = rec {
           default = pkgs.callPackage ./tungsten.nix {
             inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
           };
           tungsten = default;
+          pkl-go = pkgs.callPackage ./pkl-gen-go.nix {
+            # inherit (gomod2nix.legacyPackages.${system}) buildGoModule;
+          };
         };
 
         devShells.default = pkgs.mkShell {
@@ -42,6 +45,7 @@
             gotools
             go-tools
             gomod2nix.packages.${system}.default
+            # packages.pkl-go
           ];
         };
         formatter = pkgs.alejandra;

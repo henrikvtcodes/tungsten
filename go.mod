@@ -2,8 +2,6 @@ module github.com/henrikvtcodes/tungsten
 
 go 1.23.7
 
-toolchain go1.23.8
-
 require (
 	github.com/apple/pkl-go v0.10.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
