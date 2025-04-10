@@ -47,6 +47,9 @@
             gomod2nix.packages.${system}.default
             # packages.pkl-go
           ];
+
+          TUNGSTEN_LOG_LEVEL = "debug";
+          TUNGSTEN_LOG_FORMAT = "pretty";
         };
         formatter = pkgs.alejandra;
       };
