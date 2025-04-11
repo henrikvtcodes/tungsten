@@ -2,6 +2,9 @@
 
 Tungsten aims to be a highly flexible and programmable DNS server.
 
+> [!WARNING]
+> This is very much under development. It is far from stable, and I do not recommend that others use this.
+
 ## Developing
 
 ### Prerequisites
