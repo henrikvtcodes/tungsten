@@ -1,21 +1,42 @@
 schema = 3
 
 [mod]
+  [mod."github.com/TwiN/go-color"]
+    version = "v1.4.1"
+    hash = "sha256-m+trTKvNYRvkjOrdj+Fe+TkexfnBhd4vIGuS2snJSBc="
   [mod."github.com/apple/pkl-go"]
     version = "v0.10.0"
     hash = "sha256-gJKyRgUAPpk0i+yLycE35AjRAS5bEyGEa50gRIRazM8="
   [mod."github.com/inconshreveable/mousetrap"]
     version = "v1.1.0"
     hash = "sha256-XWlYH0c8IcxAwQTnIi6WYqq44nOKUylSWxWO/vi+8pE="
+  [mod."github.com/mattn/go-colorable"]
+    version = "v0.1.13"
+    hash = "sha256-qb3Qbo0CELGRIzvw7NVM1g/aayaz4Tguppk9MD2/OI8="
+  [mod."github.com/mattn/go-isatty"]
+    version = "v0.0.19"
+    hash = "sha256-wYQqGxeqV3Elkmn26Md8mKZ/viw598R4Ych3vtt72YE="
   [mod."github.com/miekg/dns"]
     version = "v1.1.65"
     hash = "sha256-O/03heOio/2L5ixuWe0r9oB1D/7dtPq9PDdxoXq6o9E="
+  [mod."github.com/rs/zerolog"]
+    version = "v1.34.0"
+    hash = "sha256-M503WwzPvqbOas3f70FQNXoWG17eV/XU6FubtB6P0uo="
   [mod."github.com/spf13/cobra"]
     version = "v1.9.1"
     hash = "sha256-dzEqquABE3UqZmJuj99244QjvfojS8cFlsPr/MXQGj0="
   [mod."github.com/spf13/pflag"]
     version = "v1.0.6"
     hash = "sha256-NjrK0FZPIfO/p2xtL1J7fOBQNTZAPZOC6Cb4aMMvhxI="
+  [mod."github.com/ttacon/chalk"]
+    version = "v0.0.0-20160626202418-22c06c80ed31"
+    hash = "sha256-lMdG7YeT0wHF3hGRoZdmMpTCznwD00ThhGbcbXhyTPk="
+  [mod."github.com/vmihailenco/msgpack/v5"]
+    version = "v5.4.1"
+    hash = "sha256-pDplX6xU6UpNLcFbO1pRREW5vCnSPvSU+ojAwFDv3Hk="
+  [mod."github.com/vmihailenco/tagparser/v2"]
+    version = "v2.0.0"
+    hash = "sha256-M9QyaKhSmmYwsJk7gkjtqu9PuiqZHSmTkous8VWkWY0="
   [mod."golang.org/x/mod"]
     version = "v0.24.0"
     hash = "sha256-Lrl4RzOO0J/S5E+AQ7Y6yh8B9yygvZ2W0fsKEtBSYNU="

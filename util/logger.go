@@ -22,7 +22,6 @@ func init() {
 	}
 
 	format := os.Getenv("TUNGSTEN_LOG_FORMAT")
-
 	switch strings.ToLower(format) {
 	case "json":
 		writer = os.Stdout
@@ -32,9 +31,8 @@ func init() {
 		writer = zerolog.ConsoleWriter{Out: os.Stdout}
 	}
 
-
 	// Initialize the logger with default settings
-	// zerolog.SetGlobalLevel(logLevel)
-	Logger = zerolog.New(writer).With().Timestamp().Logger();
+	zerolog.SetGlobalLevel(logLevel)
+	Logger = zerolog.New(writer).With().Timestamp().Logger().Level(logLevel);
 	Logger.Debug().Msgf("Logger initialized with level %s ", logLevel.String())
 }

@@ -26,6 +26,7 @@ func newServeCmd() *cobra.Command {
 		}
 		util.Logger.Info().Msg("Starting Tungsten DNS server...")
 		util.Logger.Info().Msgf("Loaded config: %s", conf)
+		util.Logger.Info().Msgf("Socket: %s", socket)
   },
 }
 
