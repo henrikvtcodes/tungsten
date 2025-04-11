@@ -1,8 +1,34 @@
 @go.Package { name = "github.com/henrikvtcodes/tungsten/config" }
-module henrikvtcodes.tungsten.config
+module henrikvtcodes.tungsten.config.Server
 
 import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
+// import "package://pkg.pkl-lang.org/pkl-pantry/pkl.experimental.net@1.2.1#/net.pkl"
+
+import "records.pkl"
+
+// ------------ TOP LEVEL CONFIGURATION ------------
+
+typealias PortNumber = UInt16
+
+class Zone {
+  name: Listing<String>
+
+  records: Listing<records.Record>
+
+  forward: ForwardConfig
+  forwardOnly: Boolean
+}
+
+class ForwardConfig {
+  ipv4Addresses: Listing<String>
+  ipv6Addresses: Listing<String>
+  doh: Listing<String>
+}
 
 name: String
 
-port: UInt16
+port: PortNumber
+
+zones: Listing<Zone>
+
+bindAddr: records.IPv4Address
