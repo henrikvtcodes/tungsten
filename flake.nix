@@ -21,13 +21,10 @@
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux" "aarch64-darwin" "x86_64-darwin" "aarch64-linux"];
       perSystem = {
-        config,
-        self',
-        inputs',
         pkgs,
         system,
         ...
-      }: rec {
+      }: {
         packages = rec {
           default = pkgs.callPackage ./tungsten.nix {
             inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;

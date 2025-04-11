@@ -1,8 +1,5 @@
 {
-  lib,
-  buildGoModule,
   buildGoApplication,
-  pkgs,
   ...
 }:
 buildGoApplication {
