@@ -1,6 +1,5 @@
-@go.Package { name = "github.com/henrikvtcodes/tungsten/config" }
+@go.Package { name = "github.com/henrikvtcodes/tungsten/config/records" }
 module henrikvtcodes.tungsten.config.Records
-
 import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
 
 
@@ -33,7 +32,7 @@ const hidden ipv6String = #"""
     | (\#(hex){1,4}:){2}(:\#(hex){1,4}){0,3}: # x:x:: … x:x::x:x:x:
     | \#(hex){1,4}:(:\#(hex){1,4}){0,4}:      # x:: … x::x:x:x:x:
     | :(:\#(hex){1,4}){0,5}:                  # :: … ::x:x:x:x:x:
-    )\#(ipv4String)                           # …d.d.d.d
+    )
   | \#(nonGlobalIPv6String)%[0-9]+ # Scoped address
   )
   """#
@@ -94,4 +93,8 @@ class CNAMERecord extends Record {
 class MXRecord extends Record {
   preference: UInt16
   exchange: FQDN | IPAddress
+}
+
+class TXTRecord extends Record {
+  content: String
 }

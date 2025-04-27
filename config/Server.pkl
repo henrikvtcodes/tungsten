@@ -31,4 +31,4 @@ port: PortNumber
 
 zones: Listing<Zone>
 
-bindAddr: Records.IPv4Address
+bindAddr: Records.IPAddress
