@@ -45,6 +45,7 @@
             # packages.pkl-go
           ];
 
+          TUNGSTEN_DEV_MODE = 1;
           TUNGSTEN_LOG_LEVEL = "debug";
           TUNGSTEN_LOG_FORMAT = "pretty";
         };

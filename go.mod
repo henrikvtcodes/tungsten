@@ -4,6 +4,7 @@ go 1.23.7
 
 require (
 	github.com/apple/pkl-go v0.10.0
+	github.com/carlmjohnson/truthy v0.23.1
 	github.com/miekg/dns v1.1.65
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.9.1

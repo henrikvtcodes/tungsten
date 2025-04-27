@@ -1,6 +1,7 @@
 package util
 
 import (
+	"github.com/henrikvtcodes/tungsten/config"
 	"io"
 	"os"
 	"strings"
@@ -15,10 +16,11 @@ var (
 )
 
 func init() {
+	// https://github.com/rs/zerolog#leveled-logging
 	logLevel, err := zerolog.ParseLevel(os.Getenv("TUNGSTEN_LOG_LEVEL"))
 	if err != nil {
 		// If the log level is not set or invalid, default to InfoLevel
-		logLevel = zerolog.DebugLevel
+		logLevel = zerolog.WarnLevel
 	}
 
 	format := os.Getenv("TUNGSTEN_LOG_FORMAT")
@@ -33,6 +35,10 @@ func init() {
 
 	// Initialize the logger with default settings
 	zerolog.SetGlobalLevel(logLevel)
-	Logger = zerolog.New(writer).With().Timestamp().Logger().Level(logLevel);
+	loggerCtx := zerolog.New(writer).With().Timestamp()
+	if config.DevMode {
+		loggerCtx = loggerCtx.Caller()
+	}
+	Logger = loggerCtx.Logger().Level(logLevel)
 	Logger.Debug().Msgf("Logger initialized with level %s ", logLevel.String())
 }
