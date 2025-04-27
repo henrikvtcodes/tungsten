@@ -30,7 +30,7 @@ func init() {
 	case "pretty":
 		writer = zerolog.ConsoleWriter{Out: os.Stdout}
 	default:
-		writer = zerolog.ConsoleWriter{Out: os.Stdout}
+		writer = os.Stdout
 	}
 
 	// Initialize the logger with default settings

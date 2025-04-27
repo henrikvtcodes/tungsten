@@ -1,7 +1,5 @@
 package config
 
-type FullConfig struct {
-	DNSConfig Server
 import (
 	"github.com/carlmjohnson/truthy"
 	"os"
@@ -10,4 +8,8 @@ import (
 var (
 	DevMode = truthy.Value(os.Getenv("TUNGSTEN_DEV_MODE"))
 )
+
+type WrappedServerConfig struct {
+	DNSConfig  Server
+	SocketPath string
 }

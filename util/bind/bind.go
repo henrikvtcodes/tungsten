@@ -7,11 +7,15 @@ import (
 	"net"
 )
 
-// listIP returns a list of IP addresses from a list of arguments which can be either IP-Address or Interface-Name.
-func listIP(args []string, ifaces []net.Interface) ([]string, error) {
+// ListBindIP returns a list of IP addresses from a list of arguments which can be either IP-Address or Interface-Name.
+func ListBindIP(binds []string) ([]string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
 	all := []string{}
 	var isIface bool
-	for _, a := range args {
+	for _, a := range binds {
 		isIface = false
 		for _, iface := range ifaces {
 			if a == iface.Name {
