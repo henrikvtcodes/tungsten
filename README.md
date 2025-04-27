@@ -14,6 +14,19 @@ Tungsten aims to be a highly flexible and programmable DNS server. I am creating
 - [ ] Caching with `bbolt`
 - [ ] SkyDNS-like serving from etcd
 
+## Usage
+
+### Configuration
+
+**Enviroment Variables**
+Environment variables are used for a few select things; mostly related to logging at the moment.
+
+| Variable              | Default    | Description                                                                                                                                                                                   |
+|-----------------------|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `TUNGSTEN_LOG_FORMAT` | `json`     | Can be `json` or `pretty`; determines what log output looks like.                                                                                                                             |
+| `TUNGSTEN_LOG_LEVEL`  | `2` (warn) | This value gets passed into [`zerolog.ParseLevel`](https://pkg.go.dev/github.com/rs/zerolog@v1.34.0#ParseLevel). See zerolog level docs [here](https://github.com/rs/zerolog#leveled-logging) |
+| `TUNGSTEN_DEV_MODE`   | `false`    | Any truthy or falsy value (ie `0`, `1`, `true`, `false`, etc)                                                                                                                                 |
+
 ## Developing
 
 ### Prerequisites
