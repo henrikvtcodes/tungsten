@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	Logger = log.Logger
-	writer io.Writer
+	LogLevel zerolog.Level
+	Logger   = log.Logger
+	writer   io.Writer
 )
 
 func init() {
@@ -22,6 +23,7 @@ func init() {
 		// If the log level is not set or invalid, default to InfoLevel
 		logLevel = zerolog.WarnLevel
 	}
+	LogLevel = logLevel
 
 	format := os.Getenv("TUNGSTEN_LOG_FORMAT")
 	switch strings.ToLower(format) {

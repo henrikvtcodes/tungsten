@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/rs/zerolog"
 	"path/filepath"
 
 	"github.com/henrikvtcodes/tungsten/config"
@@ -20,23 +21,30 @@ func newValidateCommand() *cobra.Command {
 		Use:   "validate",
 		Short: "Check if the config is valid",
 		Run: func(cmd *cobra.Command, args []string) {
-			util.Logger.Info().Msg("Checking config...")
+			util.Logger.Debug().Msg("Checking config...")
 
 			absConfigPath, err := filepath.Abs(configPath)
 			if err != nil {
-				println(err.Error())
-				util.Logger.Fatal().Msg("Could not form absolute file path")
+				util.Logger.Fatal().Err(err).Msg("Could not form absolute file path")
 			}
+			util.Logger.Info().Msgf("Loaded config from %s", absConfigPath)
 
-			fmt.Println(chalk.Blue.NewStyle().WithTextStyle(chalk.Bold).Style(fmt.Sprintf("Loading configuration from %s", absConfigPath)))
+			if !(util.LogLevel <= zerolog.InfoLevel) {
+				fmt.Println(chalk.Blue.NewStyle().WithTextStyle(chalk.Bold).Style(fmt.Sprintf("Loading configuration from %s", absConfigPath)))
+			}
 
 			_, err = config.LoadFromPath(context.Background(), absConfigPath)
 			if err != nil {
+				// The error is printed out separately because Pkl errors contain some formatting information that
+				// zerolog does not play nice with. This formatting information helps the end-user understand the source
+				// of the configuration error much easier
 				println(err.Error())
 				util.Logger.Fatal().Msg("Error checking config")
 			} else {
 				util.Logger.Info().Msg("Config is valid")
-				println(chalk.Green.NewStyle().WithTextStyle(chalk.Bold).Style("Configuration is correct!"))
+				if !(util.LogLevel <= zerolog.InfoLevel) {
+					println(chalk.Green.NewStyle().WithTextStyle(chalk.Bold).Style("Configuration is correct!"))
+				}
 			}
 		},
 	}
