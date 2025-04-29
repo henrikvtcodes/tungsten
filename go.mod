@@ -10,8 +10,8 @@ require (
 	github.com/miekg/dns v1.1.65
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.9.1
+	github.com/tidwall/buntdb v1.3.2
 	github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31
-	go.etcd.io/bbolt v1.4.0
 	tailscale.com v1.82.5
 )
 
@@ -76,6 +76,13 @@ require (
 	github.com/tailscale/peercred v0.0.0-20250107143737-35a0c7bd7edc // indirect
 	github.com/tailscale/web-client-prebuilt v0.0.0-20250124233751-d4cd19a26976 // indirect
 	github.com/tailscale/wireguard-go v0.0.0-20250107165329-0b8b35511f19 // indirect
+	github.com/tidwall/btree v1.4.2 // indirect
+	github.com/tidwall/gjson v1.14.3 // indirect
+	github.com/tidwall/grect v0.1.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
+	github.com/tidwall/rtred v0.1.2 // indirect
+	github.com/tidwall/tinyqueue v0.1.1 // indirect
 	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect

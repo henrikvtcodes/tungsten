@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"github.com/henrikvtcodes/tungsten/config"
-	"github.com/henrikvtcodes/tungsten/util/bind"
 	"github.com/henrikvtcodes/tungsten/util/tailscale"
 	"io/fs"
 	"net"
@@ -12,46 +11,45 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/henrikvtcodes/tungsten/util"
 	"github.com/miekg/dns"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/tidwall/buntdb"
+)
+
+var (
+	err error
 )
 
 type Server struct {
 	config *config.WrappedServerConfig
-	db     *bolt.DB
+	db     *buntdb.DB
 
-	httpServer   *http.Server
-	tcpDnsServer *dns.Server
-	udpDnsServer *dns.Server
+	httpServer *http.Server
+	dnsServers []*dns.Server
 }
 
 func NewServer(conf *config.WrappedServerConfig) *Server {
+	bDb, err := buntdb.Open(":memory:")
+	if err != nil {
+		util.Logger.Fatal().Err(err).Msg("Failed to open memory KV datastore")
+	}
 	return &Server{
 		config: conf,
-		tcpDnsServer: &dns.Server{
-			Addr: ":53",
-			Net:  "tcp",
-		},
-		udpDnsServer: &dns.Server{
-			Addr: ":53",
-			Net:  "udp",
-		},
+		db:     bDb,
 	}
 }
 
 func (s *Server) Run() {
-	binds, err := bind.ListBindIP(s.config.DNSConfig.BindAddr)
-	if err != nil {
-		util.Logger.Err(err).Msg("Error listing bind addresses")
-	}
-
-	bindsStr := strings.Join(binds, ", ")
-	util.Logger.Info().Msgf("Binding to: %s", bindsStr)
+	//binds, err := bind.ListBindIP(s.config.DNSConfig.BindAddr)
+	//if err != nil {
+	//	util.Logger.Err(err).Msg("Error listing bind addresses")
+	//}
+	//
+	//bindsStr := strings.Join(binds, ", ")
+	//util.Logger.Info().Msgf("Binding to: %s", bindsStr)
 
 	tsClient := tailscale.Tailscale{}
 	err = tsClient.Start()
@@ -68,19 +66,19 @@ func (s *Server) Run() {
 	// |---------------------|
 	// | Run DNS Listeners   |
 	// |---------------------|
-	go func() {
-		util.Logger.Info().Msg("Starting TCP DNS server")
-		if err := s.tcpDnsServer.ListenAndServe(); err != nil {
-			util.Logger.Fatal().Err(err).Msg("Failed to start TCP DNS server")
-		}
-	}()
-
-	go func() {
-		util.Logger.Info().Msg("Starting UDP DNS server")
-		if err := s.udpDnsServer.ListenAndServe(); err != nil {
-			util.Logger.Fatal().Err(err).Msg("Failed to start UDP DNS server")
-		}
-	}()
+	//go func() {
+	//	util.Logger.Info().Msg("Starting TCP DNS server")
+	//	if err := s.tcpDnsServer.ListenAndServe(); err != nil {
+	//		util.Logger.Fatal().Err(err).Msg("Failed to start TCP DNS server")
+	//	}
+	//}()
+	//
+	//go func() {
+	//	util.Logger.Info().Msg("Starting UDP DNS server")
+	//	if err := s.udpDnsServer.ListenAndServe(); err != nil {
+	//		util.Logger.Fatal().Err(err).Msg("Failed to start UDP DNS server")
+	//	}
+	//}()
 
 	// |---------------------------|
 	// | Run HTTP Control Socket |
@@ -90,7 +88,7 @@ func (s *Server) Run() {
 
 	// Wait for incoming stop signals and stop if they are received
 	for sig := range sigs {
-		println()
+		println() // Moves the log line below the ^C symbol in a terminal
 		util.Logger.Info().Msgf("Signal %d received, stopping\n", sig)
 		s.stopHttpControlSocket()
 		os.Exit(0)
