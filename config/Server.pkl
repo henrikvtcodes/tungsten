@@ -9,6 +9,11 @@ import "Records.pkl"
 // ------------ TOP LEVEL CONFIGURATION ------------
 
 typealias PortNumber = UInt16
+// language=RegExp
+const hidden ifaceRegex = #"[a-z0-9]+"#
+typealias InterfaceName = String(matches(Regex(ifaceRegex)))
+
+typealias Bindable = InterfaceName | Records.IPAddress
 
 class Zone {
   name: Listing<String>
@@ -16,12 +21,13 @@ class Zone {
   records: Listing<Records.Record>
 
   forward: ForwardConfig
-  forwardOnly: Boolean
+  forwardOnly: Boolean = false
 }
 
 class ForwardConfig {
-  ipv4Addresses: Listing<String>
-  ipv6Addresses: Listing<String>
+  ipv4Addresses: Listing<Records.IPv4Address>
+  ipv6Addresses: Listing<Records.IPv6Address>
+  ipAddresses: Listing<Records.IPAddress>
   doh: Listing<String>
 }
 
@@ -29,6 +35,7 @@ name: String
 
 port: PortNumber
 
-zones: Listing<Zone>
+zones: Mapping<String, Zone>
 
-bindAddr: Records.IPAddress
+// In reality the type of this is Listing<Bindable> but that produces an any type in Go which just doesn't work for me
+bindAddr: Listing<String>
