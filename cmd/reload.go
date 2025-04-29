@@ -38,6 +38,6 @@ var reloadCmd = &cobra.Command{
 			return
 		}
 		bodyString := string(bodyBytes)
-		util.Logger.Info().Msgf("Response: %s", bodyString)
+		util.Logger.Info().Msgf("Server says: %s", bodyString)
 	},
 }

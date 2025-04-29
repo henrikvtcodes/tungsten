@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"github.com/henrikvtcodes/tungsten/config"
 	"github.com/henrikvtcodes/tungsten/util/bind"
@@ -132,9 +133,16 @@ func (s *Server) startHTTPControlSocket() {
 	// | Create HTTP handlers |
 	// |----------------------|
 	serveMux.HandleFunc("/reload", func(w http.ResponseWriter, r *http.Request) {
-		util.Logger.Info().Msg("RELOADING!")
-		_, err := w.Write([]byte("Hello!"))
+		util.Logger.Info().Msg("Reloading configuration")
+		err := s.reloadConfig()
 		if err != nil {
+			_, wErr := w.Write([]byte(err.Error()))
+			if wErr != nil {
+				return
+			}
+		}
+		_, wErr := w.Write([]byte("Config reloaded successfully!"))
+		if wErr != nil {
 			return
 		}
 	})
@@ -158,4 +166,14 @@ func (s *Server) stopHttpControlSocket() {
 	}
 }
 
-func (s *Server) reloadConfig() {}
+func (s *Server) reloadConfig() error {
+	util.Logger.Info().Msgf("Reloading config from %s", s.config.ConfigPath)
+	conf, err := config.LoadFromPath(context.Background(), s.config.ConfigPath)
+	if err != nil {
+		util.Logger.Warn().Msg("Failed to read or validate config file")
+		return errors.New("failed to reload or validate config. try running `tungsten validate` for more information")
+	}
+	s.config.DNSConfig = conf
+	// Add more logic or function call to repopulate the database
+	return nil
+}

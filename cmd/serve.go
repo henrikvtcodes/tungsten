@@ -32,7 +32,7 @@ func newServeCmd() *cobra.Command {
 				util.Logger.Fatal().Msg("Error loading config")
 				os.Exit(1)
 			}
-
+			util.Logger.Info().Msgf("Loaded config from %s", absConfigPath)
 			util.Logger.Info().Msg("Starting Tungsten DNS server...")
 			wconf := config.WrappedServerConfig{DNSConfig: conf, SocketPath: SocketPath, ConfigPath: configPath}
 			server.NewServer(&wconf).Run()
