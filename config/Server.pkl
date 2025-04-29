@@ -12,30 +12,37 @@ typealias PortNumber = UInt16
 // language=RegExp
 const hidden ifaceRegex = #"[a-z0-9]+"#
 typealias InterfaceName = String(matches(Regex(ifaceRegex)))
-
 typealias Bindable = InterfaceName | Records.IPAddress
 
 class Zone {
-  name: Listing<String>
+  // TODO: In the future, introduce multi-server support a-la CoreDNS' bind plugin
+//   port: PortNumber?
+//   // In reality the type of this is Listing<Bindable> but that produces an any type in Go which just doesn't work for me
+//   bindAddr: Listing<String>?
 
   records: Listing<Records.Record>
 
+  tailscale: TailscaleRecords?
+
   forward: ForwardConfig
-  forwardOnly: Boolean = false
+}
+
+class TailscaleRecords {
+  machinesSubdomain: String = "ts."
+  cnameSubdomain: String = ""
 }
 
 class ForwardConfig {
   ipv4Addresses: Listing<Records.IPv4Address>
   ipv6Addresses: Listing<Records.IPv6Address>
-  ipAddresses: Listing<Records.IPAddress>
-  doh: Listing<String>
+//   ipAddresses: Listing<Records.IPAddress>
+//   doh: Listing<String>
 }
-
-name: String
-
-port: PortNumber
 
 zones: Mapping<String, Zone>
 
+defaultPort: PortNumber = 53
 // In reality the type of this is Listing<Bindable> but that produces an any type in Go which just doesn't work for me
-bindAddr: Listing<String>
+defaultBind: Listing<String> = new Listing {"127.0.0.1" "::1"}
+
+defaultForwardConfig: ForwardConfig?
