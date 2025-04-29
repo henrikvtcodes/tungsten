@@ -65,15 +65,20 @@ const hidden nonGlobalIPv6String = #"""
 // language=RegExp
 const hidden fqdnString = #"(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)"#
 
-
 typealias IPv4Address = String(matches(Regex(ipv4String)))
 typealias IPv6Address = String(matches(Regex(ipv6String)))
 typealias IPAddress = IPv4Address | IPv6Address
 
 abstract class Record {
-  name: String
   ttl: UInt32
-  type: String
+}
+
+class RecordsObject {
+  A: Mapping<String,Listing<ARecord>>
+  AAAA: Mapping<String,Listing<AAAARecord>>
+  CNAME: Mapping<String,Listing<CNAMERecord>>
+  MX: Mapping<String,Listing<MXRecord>>
+  TXT: Mapping<String,Listing<TXTRecord>>
 }
 
 class ARecord extends Record {

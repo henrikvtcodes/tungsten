@@ -20,7 +20,7 @@ class Zone {
 //   // In reality the type of this is Listing<Bindable> but that produces an any type in Go which just doesn't work for me
 //   bindAddr: Listing<String>?
 
-  records: Listing<Records.Record>
+  records: Records.RecordsObject
 
   tailscale: TailscaleRecords?
 
