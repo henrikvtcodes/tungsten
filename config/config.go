@@ -10,6 +10,7 @@ var (
 )
 
 type WrappedServerConfig struct {
-	DNSConfig  Server
+	DNSConfig  *Server
 	SocketPath string
+	ConfigPath string
 }
