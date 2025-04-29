@@ -16,10 +16,13 @@ import (
 
 	"github.com/henrikvtcodes/tungsten/util"
 	"github.com/miekg/dns"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 type Server struct {
 	config *config.WrappedServerConfig
+	db     *bolt.DB
 
 	httpServer   *http.Server
 	tcpDnsServer *dns.Server
