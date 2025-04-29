@@ -73,9 +73,8 @@ func (t *Tailscale) Start() error {
 		t.lc = &tsLocal.Client{}
 	}
 
-	util.Logger.Debug().Msg("TS Client Start: Watching IPN Bus")
+	util.Logger.Debug().Msg("TS Client Run: Watching IPN Bus")
 	go t.watchIPNBus()
-	util.Logger.Debug().Msg("TS Client Start: Returning")
 	return nil
 }
 
@@ -175,6 +174,9 @@ func (t *Tailscale) processNetMap(nm *netmap.NetworkMap) {
 	t.MachineEntries = machineEntries
 	t.CNameEntries = cnameEntries
 	t.mu.Unlock()
-	util.Logger.Debug().Msgf("Tailscale IPN bus entries %+v", machineEntries)
 	util.Logger.Debug().Msgf("Updated %d Tailscale Entries", len(entries))
+}
+
+func (t *Tailscale) GenerateDNSRecords() {
+
 }
