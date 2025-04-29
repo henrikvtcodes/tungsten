@@ -31,7 +31,6 @@ type Server struct {
 }
 
 func NewServer(conf *config.WrappedServerConfig) *Server {
-
 	return &Server{
 		config: conf,
 		tcpDnsServer: &dns.Server{
@@ -67,7 +66,7 @@ func (s *Server) Run() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGHUP)
 
 	// |---------------------|
-	// | Run DNS Listeners |
+	// | Run DNS Listeners   |
 	// |---------------------|
 	go func() {
 		util.Logger.Info().Msg("Starting TCP DNS server")
@@ -86,12 +85,12 @@ func (s *Server) Run() {
 	// |---------------------------|
 	// | Run HTTP Control Socket |
 	// |---------------------------|
-	go func() {
-		s.startHTTPControlSocket()
-	}()
+	s.startHTTPControlSocket()
+	util.Logger.Info().Msgf("HTTP Control Server listening on unix socket: %s", s.config.SocketPath)
 
 	// Wait for incoming stop signals and stop if they are received
 	for sig := range sigs {
+		println()
 		util.Logger.Info().Msgf("Signal %d received, stopping\n", sig)
 		s.stopHttpControlSocket()
 		os.Exit(0)
@@ -148,14 +147,14 @@ func (s *Server) startHTTPControlSocket() {
 	})
 
 	// |-------------------|
-	// | Run HTTP server |
+	// | Run HTTP server   |
 	// |-------------------|
-	err = s.httpServer.Serve(unixListener)
-	if err != nil {
-		util.Logger.Fatal().Err(err).Msgf("Error starting http server on socket")
-	} else {
-		util.Logger.Info().Msgf("Control Server listening on unix socket: %s", s.config.SocketPath)
-	}
+	go func() {
+		err = s.httpServer.Serve(unixListener)
+		if err != nil {
+			util.Logger.Fatal().Err(err).Msgf("Error starting http server on socket")
+		}
+	}()
 }
 
 func (s *Server) stopHttpControlSocket() {
