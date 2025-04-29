@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"github.com/henrikvtcodes/tungsten/server"
 	"os"
 
 	"github.com/henrikvtcodes/tungsten/config"
@@ -10,27 +11,30 @@ import (
 )
 
 func init() {
-  rootCmd.AddCommand(newServeCmd())
+	rootCmd.AddCommand(newServeCmd())
 }
 
 func newServeCmd() *cobra.Command {
 	var serveCmd = &cobra.Command{
-  Use:   "serve",
-  Short: "Start up the Tungsten DNS server",
-  Run: func(cmd *cobra.Command, args []string) {
-		conf, err := config.LoadFromPath(context.Background(), "./example.pkl")
-		if err != nil {
-			println(err.Error())
-			util.Logger.Fatal().Msg("Error loading config")
-			os.Exit(1)
-		}
-		util.Logger.Info().Msg("Starting Tungsten DNS server...")
-		util.Logger.Info().Msgf("Loaded config: %s", conf)
-		util.Logger.Info().Msgf("Socket: %s", socket)
-  },
-}
+		Use:   "serve",
+		Short: "Start up the Tungsten DNS server",
+		Run: func(cmd *cobra.Command, args []string) {
+			conf, err := config.LoadFromPath(context.Background(), configPath)
+			if err != nil {
+				// The error is printed out separately because Pkl errors contain some formatting information that
+				// zerolog does not play nice with. This formatting information helps the end-user understand the source
+				// of the configuration error much easier
+				println(err.Error())
+				util.Logger.Fatal().Msg("Error loading config")
+				os.Exit(1)
+			}
+			util.Logger.Info().Msg("Starting Tungsten DNS server...")
+			wconf := config.WrappedServerConfig{DNSConfig: *conf, SocketPath: socket}
+			server.NewServer().Start(&wconf)
+		},
+	}
 
-serveCmd.Flags().StringP("config", "c", "./example.pkl", "Path to the config file")
+	//serveCmd.Flags().StringVarP(&configPath, "config", "c", "./example.pkl", "Path to the config file")
 
-return serveCmd
+	return serveCmd
 }
