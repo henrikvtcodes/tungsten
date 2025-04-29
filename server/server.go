@@ -1,8 +1,12 @@
 package server
 
 import (
+	"github.com/henrikvtcodes/tungsten/config"
+	"github.com/henrikvtcodes/tungsten/util/bind"
+	"github.com/henrikvtcodes/tungsten/util/tailscale"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/henrikvtcodes/tungsten/util"
@@ -27,7 +31,23 @@ func NewServer() *Server {
 	}
 }
 
-func (s *Server) Start() {
+func (s *Server) Start(conf *config.WrappedServerConfig) {
+	binds, err := bind.ListBindIP(conf.DNSConfig.BindAddr)
+	if err != nil {
+		util.Logger.Err(err).Msg("Error listing bind addresses")
+	}
+
+	bindsStr := strings.Join(binds, ", ")
+	util.Logger.Info().Msgf("Binding to: %s", bindsStr)
+
+	tsClient := tailscale.Tailscale{}
+	err = tsClient.Start()
+	if err != nil {
+		return
+	} else {
+		util.Logger.Info().Msg("Tailscale client started")
+	}
+
 	go func() {
 		util.Logger.Info().Msg("Starting TCP DNS server")
 		if err := s.tcpDnsServer.ListenAndServe(); err != nil {
@@ -36,7 +56,7 @@ func (s *Server) Start() {
 	}()
 
 	go func() {
-		util.Logger.Info().Msg("Starting TCP DNS server")
+		util.Logger.Info().Msg("Starting UDP DNS server")
 		if err := s.udpDnsServer.ListenAndServe(); err != nil {
 			util.Logger.Fatal().Err(err).Msg("Failed to start UDP DNS server")
 		}
@@ -45,6 +65,6 @@ func (s *Server) Start() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	for s := range sig {
-		util.Logger.Fatal().Msgf("Signal (%d) received, stopping\n", s)
+		util.Logger.Fatal().Msgf("Signal %d received, stopping\n", s)
 	}
 }
