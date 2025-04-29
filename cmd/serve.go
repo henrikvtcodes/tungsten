@@ -17,7 +17,7 @@ func init() {
 func newServeCmd() *cobra.Command {
 	var serveCmd = &cobra.Command{
 		Use:   "serve",
-		Short: "Start up the Tungsten DNS server",
+		Short: "Run up the Tungsten DNS server",
 		Run: func(cmd *cobra.Command, args []string) {
 			conf, err := config.LoadFromPath(context.Background(), configPath)
 			if err != nil {
@@ -29,12 +29,9 @@ func newServeCmd() *cobra.Command {
 				os.Exit(1)
 			}
 			util.Logger.Info().Msg("Starting Tungsten DNS server...")
-			wconf := config.WrappedServerConfig{DNSConfig: *conf, SocketPath: socket}
-			server.NewServer().Start(&wconf)
+			wconf := config.WrappedServerConfig{DNSConfig: *conf, SocketPath: SocketPath}
+			server.NewServer(&wconf).Run()
 		},
 	}
-
-	//serveCmd.Flags().StringVarP(&configPath, "config", "c", "./example.pkl", "Path to the config file")
-
 	return serveCmd
 }

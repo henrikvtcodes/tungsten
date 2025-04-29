@@ -25,7 +25,7 @@ func newValidateCommand() *cobra.Command {
 
 			absConfigPath, err := filepath.Abs(configPath)
 			if err != nil {
-				util.Logger.Fatal().Err(err).Msg("Could not form absolute file path")
+				util.Logger.Fatal().Err(err).Msg("Could not form absolute file path for config")
 			}
 			util.Logger.Info().Msgf("Loaded config from %s", absConfigPath)
 

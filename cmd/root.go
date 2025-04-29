@@ -16,12 +16,12 @@ var (
 		SilenceUsage:          true,
 	}
 
-	socket     string
+	SocketPath string
 	configPath string
 )
 
 func newRootCmd() *cobra.Command {
-	rootCmd.PersistentFlags().StringVarP(&socket, "socket", "s", "/run/tungsten/tungsten.sock", "Path to the socket for daemon communication")
+	rootCmd.PersistentFlags().StringVarP(&SocketPath, "socket", "s", "/run/tungsten/tungsten.sock", "Path to the socket for daemon communication")
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "./example.pkl", "Path to the configuration file")
 	return rootCmd
 }
