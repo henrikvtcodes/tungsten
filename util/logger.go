@@ -2,12 +2,12 @@ package util
 
 import (
 	"github.com/henrikvtcodes/tungsten/config"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"io"
 	"os"
 	"strings"
-
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"time"
 )
 
 var (
@@ -30,7 +30,7 @@ func init() {
 	case "json":
 		writer = os.Stdout
 	case "pretty":
-		writer = zerolog.ConsoleWriter{Out: os.Stdout}
+		writer = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC1123}
 	default:
 		writer = os.Stdout
 	}
