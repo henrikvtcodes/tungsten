@@ -70,7 +70,7 @@ typealias IPv6Address = String(matches(Regex(ipv6String)))
 typealias IPAddress = IPv4Address | IPv6Address
 
 abstract class Record {
-  ttl: UInt32
+  ttl: UInt32 = 3600
 }
 
 class RecordsObject {
