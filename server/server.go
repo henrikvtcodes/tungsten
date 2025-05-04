@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/henrikvtcodes/tungsten/util"
 	"github.com/miekg/dns"
@@ -27,8 +28,11 @@ type Server struct {
 	config *config.WrappedServerConfig
 	db     *buntdb.DB
 
-	httpServer *http.Server
-	dnsServers []*dns.Server
+	httpServer        *http.Server
+	httpServerRunning bool
+
+	dnsServers          []*dns.Server
+	dnsInstancesRunning uint8
 }
 
 func NewServer(conf *config.WrappedServerConfig) *Server {
@@ -43,6 +47,7 @@ func NewServer(conf *config.WrappedServerConfig) *Server {
 }
 
 func (s *Server) Run() {
+func (srv *Server) Run() {
 	//binds, err := bind.ListBindIP(s.config.DNSConfig.BindAddr)
 	//if err != nil {
 	//	util.Logger.Err(err).Msg("Error listing bind addresses")
@@ -51,6 +56,25 @@ func (s *Server) Run() {
 	//bindsStr := strings.Join(binds, ", ")
 	//util.Logger.Info().Msgf("Binding to: %s", bindsStr)
 
+	// Channels to handle stop signals and general server teardown
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGHUP)
+	//ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGHUP)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if ctx.Err() == nil {
+		go func() {
+			select {
+			case sig := <-sigs:
+				if sig == syscall.SIGINT {
+					println() // Moves the next log line below the ^C symbol in a terminal
+				}
+				util.Logger.Info().Msgf("Signal %d (%s) received, stopping", sig, sig.String())
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+	}
 	tsClient := tailscale.Tailscale{}
 	err = tsClient.Start()
 	if err != nil {
@@ -58,10 +82,6 @@ func (s *Server) Run() {
 	} else {
 		util.Logger.Info().Msg("Tailscale client started")
 	}
-
-	// Channels to handle stop signals and general server teardown
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGHUP)
 
 	// |---------------------|
 	// | Run DNS Listeners   |
@@ -81,32 +101,51 @@ func (s *Server) Run() {
 	//}()
 
 	// |---------------------------|
-	// | Run HTTP Control Socket |
+	// | Run HTTP Control Socket   |
 	// |---------------------------|
-	s.startHTTPControlSocket()
-	util.Logger.Info().Msgf("HTTP Control Server listening on unix socket: %s", s.config.SocketPath)
+	//srv.startHTTPControlSocket()
+	//util.Logger.Info().Msgf("HTTP Control Server listening on unix socket: %s", srv.config.SocketPath)
 
-	// Wait for incoming stop signals and stop if they are received
-	for sig := range sigs {
-		println() // Moves the log line below the ^C symbol in a terminal
-		util.Logger.Info().Msgf("Signal %d received, stopping\n", sig)
-		s.stopHttpControlSocket()
-		os.Exit(0)
+	go srv.RunHTTPControlSocket(ctx)
+	<-ctx.Done()
+	util.Logger.Info().Msgf("Stopping")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for !srv.Stopped() {
+		select {
+		case <-time.After(100 * time.Millisecond):
+			continue
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
-func (s *Server) startHTTPControlSocket() {
+func (srv *Server) Stopped() bool {
+	return !(srv.httpServerRunning || srv.dnsInstancesRunning > 0)
+}
+
+func (srv *Server) RunHTTPControlSocket(ctx context.Context) {
+	srv.startHTTPControlSocket()
+	util.Logger.Info().Msgf("HTTP Control Server listening on unix socket: %s", srv.config.SocketPath)
+	<-ctx.Done()
+	srv.stopHttpControlSocket()
+}
+
+func (srv *Server) startHTTPControlSocket() {
 	util.Logger.Info().Msg("Starting HTTP control server")
 	// Create HTTP server and ServeMux (for handler functions)
 	serveMux := http.NewServeMux()
-	s.httpServer = &http.Server{
+	srv.httpServer = &http.Server{
 		Handler: serveMux,
 	}
 
 	// |-----------------------------|
 	// | Create Unix socket listener |
 	// |-----------------------------|
-	absSocketPath, err := filepath.Abs(s.config.SocketPath)
+	absSocketPath, err := filepath.Abs(srv.config.SocketPath)
 	if err != nil {
 		util.Logger.Fatal().Err(err).Msg("Could not form absolute socket path")
 	}
@@ -122,16 +161,16 @@ func (s *Server) startHTTPControlSocket() {
 	}
 	unixListener, err := net.Listen("unix", absSocketPath)
 	if err != nil {
-		util.Logger.Fatal().Err(err).Msgf("Error creating unix control socket at %s", s.config.SocketPath)
+		util.Logger.Fatal().Err(err).Msgf("Error creating unix control socket at %s", srv.config.SocketPath)
 	}
-	s.config.SocketPath = absSocketPath
+	srv.config.SocketPath = absSocketPath
 
 	// |----------------------|
 	// | Create HTTP handlers |
 	// |----------------------|
 	serveMux.HandleFunc("/reload", func(w http.ResponseWriter, r *http.Request) {
 		util.Logger.Info().Msg("Reloading configuration")
-		err := s.reloadConfig()
+		err := srv.reloadConfig()
 		if err != nil {
 			_, wErr := w.Write([]byte(err.Error()))
 			if wErr != nil {
@@ -144,23 +183,25 @@ func (s *Server) startHTTPControlSocket() {
 		}
 	})
 
-	// |-------------------|
-	// | Run HTTP server   |
-	// |-------------------|
+	// |-----------------|
+	// | Run HTTP server |
+	// |-----------------|
 	go func() {
-		err = s.httpServer.Serve(unixListener)
+		err = srv.httpServer.Serve(unixListener)
 		if err != nil {
 			util.Logger.Fatal().Err(err).Msgf("Error starting http server on socket")
 		}
 	}()
+	srv.httpServerRunning = true
 }
 
-func (s *Server) stopHttpControlSocket() {
+func (srv *Server) stopHttpControlSocket() {
 	util.Logger.Info().Msg("Shutting down HTTP server")
-	err := os.Remove(s.config.SocketPath)
+	err := os.Remove(srv.config.SocketPath)
 	if err != nil {
 		util.Logger.Err(err).Msg("Failed to delete socket file")
 	}
+	srv.httpServerRunning = false
 }
 
 func (s *Server) reloadConfig() error {
