@@ -25,8 +25,9 @@ var (
 type Server struct {
 	config *config.WrappedServerConfig
 
-	httpServer        *http.Server
-	httpServerRunning bool
+	// Unix socket used to issue commands, ie hot-reloading the configuration
+	httpControlServer        *http.Server
+	httpControlServerRunning bool
 
 	dnsServers          []*dns.Server
 	dnsInstancesRunning uint8
@@ -91,11 +92,12 @@ func (srv *Server) Run() {
 	// |---------------------------|
 	// | Run HTTP Control Socket   |
 	// |---------------------------|
-
 	go srv.RunHTTPControlSocket(ctx)
+
 	// Await stop signals
 	<-ctx.Done()
 
+	// Ensure everything gets cleaned up
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -110,7 +112,7 @@ func (srv *Server) Run() {
 }
 
 func (srv *Server) Stopped() bool {
-	return !(srv.httpServerRunning || srv.dnsInstancesRunning > 0)
+	return !(srv.httpControlServerRunning || srv.dnsInstancesRunning > 0)
 }
 
 func (srv *Server) RunHTTPControlSocket(ctx context.Context) {
@@ -124,7 +126,7 @@ func (srv *Server) startHTTPControlSocket() {
 	util.Logger.Info().Msg("Starting HTTP control server")
 	// Create HTTP server and ServeMux (for handler functions)
 	serveMux := http.NewServeMux()
-	srv.httpServer = &http.Server{
+	srv.httpControlServer = &http.Server{
 		Handler: serveMux,
 	}
 
@@ -173,12 +175,12 @@ func (srv *Server) startHTTPControlSocket() {
 	// | Run HTTP server |
 	// |-----------------|
 	go func() {
-		err = srv.httpServer.Serve(unixListener)
+		err = srv.httpControlServer.Serve(unixListener)
 		if err != nil {
 			util.Logger.Fatal().Err(err).Msgf("Error starting http server on socket")
 		}
 	}()
-	srv.httpServerRunning = true
+	srv.httpControlServerRunning = true
 }
 
 func (srv *Server) stopHttpControlSocket() {
@@ -187,7 +189,7 @@ func (srv *Server) stopHttpControlSocket() {
 	if err != nil {
 		util.Logger.Err(err).Msg("Failed to delete socket file")
 	}
-	srv.httpServerRunning = false
+	srv.httpControlServerRunning = false
 }
 
 func (srv *Server) reloadConfig() error {
