@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/henrikvtcodes/tungsten/config"
 	"github.com/henrikvtcodes/tungsten/util/tailscale"
 	"io/fs"
@@ -135,10 +136,9 @@ func (srv *Server) Run() {
 	//	}
 	//}()
 
-	// |---------------------------|
-	// | Run HTTP Control Socket   |
-	// |---------------------------|
+	// Run the things!
 	go srv.RunHTTPControlSocket(runCtx)
+	go srv.RunDNSListeners(runCtx)
 
 	// Await stop signals
 	<-runCtx.Done()
@@ -160,6 +160,52 @@ func (srv *Server) Run() {
 func (srv *Server) Stopped() bool {
 	return !(srv.httpControlServerRunning || srv.dnsInstancesRunning > 0)
 }
+
+// ||=========================||
+// || Actual DNS Server Stuff ||
+// ||=========================||
+
+func (srv *Server) RunDNSListeners(ctx context.Context) {
+	go srv.servePlainDNS(ctx, "udp")
+	go srv.servePlainDNS(ctx, "tcp")
+}
+
+func (srv *Server) servePlainDNS(ctx context.Context, net string) {
+	addr := fmt.Sprintf(":%d", srv.config.DNSConfig.DefaultPort)
+	ns := &dns.Server{
+		Addr:          addr,
+		Net:           net,
+		MaxTCPQueries: 2048,
+		ReusePort:     true,
+	}
+
+	go func() {
+		srv.dnsInstancesRunning++
+		util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Starting DNS server")
+		if err := ns.ListenAndServe(); err != nil {
+			srv.dnsInstancesRunning--
+			util.Logger.Fatal().Err(err).Str("net", net).Str("addr", addr).Msg("Failed to start DNS server")
+		}
+
+		<-ctx.Done()
+		util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Stopping DNS server")
+
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer stopCancel()
+
+		if err := ns.ShutdownContext(stopCtx); err != nil {
+			util.Logger.Fatal().Err(err).Str("net", net).Str("addr", addr).Msg("Failed to shutdown DNS server")
+		}
+
+		util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Stopped DNS server")
+		srv.dnsInstancesRunning--
+	}()
+
+}
+
+// ||===========================||
+// || HTTP Control Socket Stuff ||
+// ||===========================||
 
 func (srv *Server) RunHTTPControlSocket(ctx context.Context) {
 	srv.startHTTPControlSocket()
