@@ -16,8 +16,6 @@ import (
 
 	"github.com/henrikvtcodes/tungsten/util"
 	"github.com/miekg/dns"
-
-	"github.com/tidwall/buntdb"
 )
 
 var (
@@ -26,7 +24,6 @@ var (
 
 type Server struct {
 	config *config.WrappedServerConfig
-	db     *buntdb.DB
 
 	httpServer        *http.Server
 	httpServerRunning bool
@@ -36,14 +33,12 @@ type Server struct {
 }
 
 func NewServer(conf *config.WrappedServerConfig) *Server {
-	bDb, err := buntdb.Open(":memory:")
-	if err != nil {
-		util.Logger.Fatal().Err(err).Msg("Failed to open memory KV datastore")
-	}
-	return &Server{
+	srv := &Server{
 		config: conf,
-		db:     bDb,
 	}
+
+	return srv
+}
 }
 
 func (s *Server) Run() {
