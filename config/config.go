@@ -16,7 +16,7 @@ type WrappedServerConfig struct {
 	ConfigPath string
 }
 
-func ValidateForwardConfig(fwc ForwardConfig) error {
+func ValidateForwardConfig(fwc *ForwardConfig) error {
 	if len(fwc.Ipv4Addresses) == 0 && len(fwc.Ipv6Addresses) == 0 {
 		return fmt.Errorf("must provide at least one IPv4 or IPv6 address")
 	}

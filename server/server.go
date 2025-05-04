@@ -31,15 +31,50 @@ type Server struct {
 
 	dnsServers          []*dns.Server
 	dnsInstancesRunning uint8
+
+	zones map[string]*ZoneInstance
 }
 
 func NewServer(conf *config.WrappedServerConfig) *Server {
 	srv := &Server{
 		config: conf,
 	}
-
+	err := srv.populateConfig()
+	if err != nil {
+		util.Logger.Fatal().Err(err).Msg("Failed to populate config")
+	}
 	return srv
 }
+
+// NewMockServer is used purely for config validation, and as such it does not return the server object
+func NewMockServer(conf *config.WrappedServerConfig) error {
+	srv := &Server{
+		config: conf,
+	}
+	err := srv.populateConfig()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (srv *Server) populateConfig() error {
+	for name, conf := range srv.config.DNSConfig.Zones {
+		if srv.zones[name] == nil {
+			zi, err := NewZoneInstance(name, *conf)
+			if err != nil {
+				return err
+			}
+			srv.zones[name] = zi
+		} else {
+			err := srv.zones[name].Initialize(*conf)
+			if err != nil {
+				return err
+			}
+		}
+
+	}
+	return nil
 }
 
 func (srv *Server) Run() {
@@ -201,5 +236,10 @@ func (srv *Server) reloadConfig() error {
 	}
 	srv.config.DNSConfig = conf
 	// Add more logic or function call to repopulate the database
+	err = srv.populateConfig()
+	if err != nil {
+		util.Logger.Err(err).Msg("Failed to populate config")
+		return err
+	}
 	return nil
 }
