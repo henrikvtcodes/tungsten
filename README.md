@@ -44,3 +44,8 @@ In this case, `generate` references the config files in `config` to run `pkl-gen
 ```sh
 go generate && go build
 ```
+
+## Credits & Inspiration
+- [SDNS](https://github.com/semihalev/sdns) (Go patterns for starting/stopping stuff, and DoH/DoQ things)
+- [damomurf/coredns-tailscale](https://github.com/damomurf/coredns-tailscale) (Pulling information from tailscale for self-hosted MagicDNS)
+- [CoreDNS `bind` plugin](https://github.com/coredns/coredns/blob/abb0a52c5ffcff1421098effd3a58e1c9c01fbbe/plugin/bind/setup.go) (Translating iface names to bindable addresses)
