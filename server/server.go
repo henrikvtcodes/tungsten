@@ -41,27 +41,19 @@ func NewServer(conf *config.WrappedServerConfig) *Server {
 }
 }
 
-func (s *Server) Run() {
 func (srv *Server) Run() {
-	//binds, err := bind.ListBindIP(s.config.DNSConfig.BindAddr)
-	//if err != nil {
-	//	util.Logger.Err(err).Msg("Error listing bind addresses")
-	//}
-	//
-	//bindsStr := strings.Join(binds, ", ")
-	//util.Logger.Info().Msgf("Binding to: %s", bindsStr)
-
-	// Channels to handle stop signals and general server teardown
+	// Set up channel & context to run indefinitely & handle graceful shutdown
+	// This is in fact copied from the go internal implementation of signals.NotifyContext, but I wanted to
+	// be able to log out the specific signal that was received so yeah
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGHUP)
-	//ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGHUP)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if ctx.Err() == nil {
 		go func() {
 			select {
 			case sig := <-sigs:
-				if sig == syscall.SIGINT {
+				if sig == os.Interrupt {
 					println() // Moves the next log line below the ^C symbol in a terminal
 				}
 				util.Logger.Info().Msgf("Signal %d (%s) received, stopping", sig, sig.String())
@@ -70,6 +62,7 @@ func (srv *Server) Run() {
 			}
 		}()
 	}
+
 	tsClient := tailscale.Tailscale{}
 	err = tsClient.Start()
 	if err != nil {
@@ -98,12 +91,10 @@ func (srv *Server) Run() {
 	// |---------------------------|
 	// | Run HTTP Control Socket   |
 	// |---------------------------|
-	//srv.startHTTPControlSocket()
-	//util.Logger.Info().Msgf("HTTP Control Server listening on unix socket: %s", srv.config.SocketPath)
 
 	go srv.RunHTTPControlSocket(ctx)
+	// Await stop signals
 	<-ctx.Done()
-	util.Logger.Info().Msgf("Stopping")
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -199,14 +190,14 @@ func (srv *Server) stopHttpControlSocket() {
 	srv.httpServerRunning = false
 }
 
-func (s *Server) reloadConfig() error {
-	util.Logger.Info().Msgf("Reloading config from %s", s.config.ConfigPath)
-	conf, err := config.LoadFromPath(context.Background(), s.config.ConfigPath)
+func (srv *Server) reloadConfig() error {
+	util.Logger.Info().Msgf("Reloading config from %s", srv.config.ConfigPath)
+	conf, err := config.LoadFromPath(context.Background(), srv.config.ConfigPath)
 	if err != nil {
 		util.Logger.Warn().Msg("Failed to read or validate config file")
 		return errors.New("failed to reload or validate config. try running `tungsten validate` for more information")
 	}
-	s.config.DNSConfig = conf
+	srv.config.DNSConfig = conf
 	// Add more logic or function call to repopulate the database
 	return nil
 }
