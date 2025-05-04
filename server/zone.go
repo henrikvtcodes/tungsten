@@ -46,7 +46,7 @@ func (zi *ZoneInstance) Initialize(zone config.Zone) error {
 func (zi *ZoneInstance) Populate() error {
 	// Validate the forward config
 	if !zi.NoForward {
-		err := config.ValidateForwardConfig(zi.ForwardConfig)
+		err := config.ValidateForwardConfig(zi.ForwardConfig, zi.Name)
 		if err != nil {
 			return err
 		}
