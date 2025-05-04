@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,7 +24,8 @@ var (
 )
 
 type Server struct {
-	config *config.WrappedServerConfig
+	config   *config.WrappedServerConfig
+	configMu sync.RWMutex
 
 	// Unix socket used to issue commands, ie hot-reloading the configuration
 	httpControlServer        *http.Server
@@ -38,6 +40,7 @@ type Server struct {
 func NewServer(conf *config.WrappedServerConfig) *Server {
 	srv := &Server{
 		config: conf,
+		zones:  make(map[string]*ZoneInstance),
 	}
 	err := srv.populateConfig()
 	if err != nil {
@@ -50,6 +53,7 @@ func NewServer(conf *config.WrappedServerConfig) *Server {
 func NewMockServer(conf *config.WrappedServerConfig) error {
 	srv := &Server{
 		config: conf,
+		zones:  make(map[string]*ZoneInstance),
 	}
 	err := srv.populateConfig()
 	if err != nil {
@@ -59,8 +63,15 @@ func NewMockServer(conf *config.WrappedServerConfig) error {
 }
 
 func (srv *Server) populateConfig() error {
+	srv.configMu.Lock()
+	defer srv.configMu.Unlock()
 	for name, conf := range srv.config.DNSConfig.Zones {
-		if srv.zones[name] == nil {
+		// If the zone does not have a forward config and is set up to forward queries, use the default forward config
+		if !conf.NoForward && conf.Forward == nil {
+			conf.Forward = srv.config.DNSConfig.DefaultForwardConfig
+		}
+		// If the zone already exists in the map, we do not want to overwrite it as that would break the DNS query handler (since hot-reloading is supported)
+		if _, ok := srv.zones[name]; !ok {
 			zi, err := NewZoneInstance(name, *conf)
 			if err != nil {
 				return err
