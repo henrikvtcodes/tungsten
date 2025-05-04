@@ -83,9 +83,9 @@ func (srv *Server) Run() {
 	// be able to log out the specific signal that was received so yeah
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGHUP)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	if ctx.Err() == nil {
+	runCtx, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	if runCtx.Err() == nil {
 		go func() {
 			select {
 			case sig := <-sigs:
@@ -93,8 +93,8 @@ func (srv *Server) Run() {
 					println() // Moves the next log line below the ^C symbol in a terminal
 				}
 				util.Logger.Info().Msgf("Signal %d (%s) received, stopping", sig, sig.String())
-				cancel()
-			case <-ctx.Done():
+				runCancel()
+			case <-runCtx.Done():
 			}
 		}()
 	}
@@ -127,20 +127,20 @@ func (srv *Server) Run() {
 	// |---------------------------|
 	// | Run HTTP Control Socket   |
 	// |---------------------------|
-	go srv.RunHTTPControlSocket(ctx)
+	go srv.RunHTTPControlSocket(runCtx)
 
 	// Await stop signals
-	<-ctx.Done()
+	<-runCtx.Done()
 
 	// Ensure everything gets cleaned up
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer stopCancel()
 
 	for !srv.Stopped() {
 		select {
 		case <-time.After(100 * time.Millisecond):
 			continue
-		case <-ctx.Done():
+		case <-stopCtx.Done():
 			return
 		}
 	}
