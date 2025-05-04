@@ -24,7 +24,7 @@ class Zone {
 
   tailscale: TailscaleRecords?
 
-  forward: ForwardConfig
+  forward: ForwardConfig?
   noForward: Boolean = false
 }
 
