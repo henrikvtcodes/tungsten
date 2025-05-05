@@ -32,8 +32,8 @@ type Server struct {
 	httpControlServer        *http.Server
 	httpControlServerRunning bool
 
-	dnsServers          []*dns.Server
-	dnsInstancesRunning uint8
+	dnsServers []*dns.Server
+	dnsWg      sync.WaitGroup
 
 	zones map[string]*ZoneInstance
 }
@@ -47,6 +47,7 @@ func NewServer(conf *config.WrappedServerConfig) *Server {
 	if err != nil {
 		util.Logger.Fatal().Err(err).Msg("Failed to populate config")
 	}
+
 	return srv
 }
 
@@ -138,7 +139,7 @@ func (srv *Server) Run() {
 
 	// Run the things!
 	go srv.RunHTTPControlSocket(runCtx)
-	go srv.RunDNSListeners(runCtx)
+	srv.RunDNSListeners(runCtx)
 
 	// Await stop signals
 	<-runCtx.Done()
@@ -147,18 +148,21 @@ func (srv *Server) Run() {
 	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer stopCancel()
 
-	for !srv.Stopped() {
+	// If the waitgroup completes before the timeout, cancel
+	go func() {
+		srv.dnsWg.Wait()
+		stopCancel()
+	}()
+
+	for srv.httpControlServerRunning {
 		select {
 		case <-time.After(100 * time.Millisecond):
 			continue
 		case <-stopCtx.Done():
+			util.Logger.Info().Msg("Exit complete")
 			return
 		}
 	}
-}
-
-func (srv *Server) Stopped() bool {
-	return !(srv.httpControlServerRunning || srv.dnsInstancesRunning > 0)
 }
 
 // ||=========================||
@@ -166,11 +170,11 @@ func (srv *Server) Stopped() bool {
 // ||=========================||
 
 func (srv *Server) RunDNSListeners(ctx context.Context) {
-	go srv.servePlainDNS(ctx, "udp")
-	go srv.servePlainDNS(ctx, "tcp")
+	go srv.servePlainDNS(ctx, &srv.dnsWg, "udp")
+	go srv.servePlainDNS(ctx, &srv.dnsWg, "tcp")
 }
 
-func (srv *Server) servePlainDNS(ctx context.Context, net string) {
+func (srv *Server) servePlainDNS(ctx context.Context, wg *sync.WaitGroup, net string) {
 	addr := fmt.Sprintf(":%d", srv.config.DNSConfig.DefaultPort)
 	ns := &dns.Server{
 		Addr:          addr,
@@ -179,28 +183,28 @@ func (srv *Server) servePlainDNS(ctx context.Context, net string) {
 		ReusePort:     true,
 	}
 
+	wg.Add(1)
 	go func() {
-		srv.dnsInstancesRunning++
 		util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Starting DNS server")
-		if err := ns.ListenAndServe(); err != nil {
-			srv.dnsInstancesRunning--
-			util.Logger.Fatal().Err(err).Str("net", net).Str("addr", addr).Msg("Failed to start DNS server")
+		if nsErr := ns.ListenAndServe(); nsErr != nil {
+			util.Logger.Err(nsErr).Str("net", net).Str("addr", addr).Msg("Failed to start DNS server")
+			return
 		}
-
-		<-ctx.Done()
-		util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Stopping DNS server")
-
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer stopCancel()
-
-		if err := ns.ShutdownContext(stopCtx); err != nil {
-			util.Logger.Fatal().Err(err).Str("net", net).Str("addr", addr).Msg("Failed to shutdown DNS server")
-		}
-
-		util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Stopped DNS server")
-		srv.dnsInstancesRunning--
 	}()
 
+	<-ctx.Done()
+	util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Stopping DNS server")
+	defer wg.Done()
+
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer stopCancel()
+
+	if err := ns.ShutdownContext(stopCtx); err != nil {
+		util.Logger.Err(err).Str("net", net).Str("addr", addr).Msg("Failed to shutdown DNS server")
+		return
+	}
+
+	util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Stopped DNS server")
 }
 
 // ||===========================||
