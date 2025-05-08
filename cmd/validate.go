@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/henrikvtcodes/tungsten/server"
 	"github.com/rs/zerolog"
 	"path/filepath"
 
@@ -21,8 +22,10 @@ func newValidateCommand() *cobra.Command {
 		Use:   "validate",
 		Short: "Check if the config is valid",
 		Run: func(cmd *cobra.Command, args []string) {
+			// Make sure important messages get printed out
+			util.Logger = util.Logger.Level(zerolog.InfoLevel)
+			
 			util.Logger.Debug().Msg("Checking config...")
-
 			absConfigPath, err := filepath.Abs(configPath)
 			if err != nil {
 				util.Logger.Fatal().Err(err).Msg("Could not form absolute file path for config")
@@ -33,7 +36,7 @@ func newValidateCommand() *cobra.Command {
 				fmt.Println(chalk.Blue.NewStyle().WithTextStyle(chalk.Bold).Style(fmt.Sprintf("Loading configuration from %s", absConfigPath)))
 			}
 
-			_, err = config.LoadFromPath(context.Background(), absConfigPath)
+			conf, err := config.LoadFromPath(context.Background(), absConfigPath)
 			if err != nil {
 				// The error is printed out separately because Pkl errors contain some formatting information that
 				// zerolog does not play nice with. This formatting information helps the end-user understand the source
@@ -44,6 +47,20 @@ func newValidateCommand() *cobra.Command {
 				util.Logger.Info().Msg("Config is valid")
 				if !(util.LogLevel <= zerolog.InfoLevel) {
 					println(chalk.Green.NewStyle().WithTextStyle(chalk.Bold).Style("Configuration is correct!"))
+				}
+			}
+
+			util.Logger.Info().Msg("Starting server creation dry-run. Configuration will be parsed as though a server will be started but it will exit before that.")
+			wconf := config.WrappedServerConfig{DNSConfig: conf, SocketPath: SocketPath, ConfigPath: absConfigPath}
+			err = server.NewMockServer(&wconf)
+
+			if err != nil {
+				println(err.Error())
+				util.Logger.Fatal().Msg("Error running config")
+			} else {
+				util.Logger.Info().Msg("Config is fully valid!")
+				if !(util.LogLevel <= zerolog.InfoLevel) {
+					println(chalk.Green.NewStyle().WithTextStyle(chalk.Bold).Style("Configuration is fully validated!"))
 				}
 			}
 		},
