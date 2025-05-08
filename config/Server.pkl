@@ -29,8 +29,8 @@ class Zone {
 }
 
 class TailscaleRecords {
-  machinesSubdomain: String = "ts."
-  cnameSubdomain: String = ""
+  machinesSubdomain: String = ".ts."
+  cnameSubdomain: String = "."
 }
 
 class ForwardConfig {
@@ -47,3 +47,6 @@ defaultPort: PortNumber = 53
 defaultBind: Listing<String> = new Listing {"127.0.0.1" "::1"}
 
 defaultForwardConfig: ForwardConfig?
+
+enableTailscale: Boolean = false
+defaultTailscaleConfig: TailscaleRecords?
