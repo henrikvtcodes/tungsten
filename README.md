@@ -7,11 +7,11 @@ Tungsten aims to be a highly flexible and programmable DNS server. I am creating
 
 ## Features/Goals
 
-- [ ] Easily add all sorts of records using structured, typesafe configuration instead of RFC 1035 syntax
-- [ ] Autopopulate names from a Tailscale IPN/Tailnet
+- [x] Easily add all sorts of records using structured, typesafe configuration instead of RFC 1035 syntax
+- [x] Autopopulate names from a Tailscale IPN/Tailnet
+- [x] Configuration hot-reloading
 - [ ] Forward DNS queries to different places depending on what zone answers for them
 - [ ] Fully recursive resolution (likely with libunbound)
-- [ ] Caching with `bbolt`
 - [ ] SkyDNS-like serving from etcd
 
 ## Usage
