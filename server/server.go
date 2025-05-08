@@ -32,16 +32,19 @@ type Server struct {
 	httpControlServer        *http.Server
 	httpControlServerRunning bool
 
-	dnsServers []*dns.Server
-	dnsWg      sync.WaitGroup
+	tailscaleClient *tailscale.Tailscale
+
+	dnsWg       sync.WaitGroup
+	dnsServeMux *dns.ServeMux
 
 	zones map[string]*ZoneInstance
 }
 
 func NewServer(conf *config.WrappedServerConfig) *Server {
 	srv := &Server{
-		config: conf,
-		zones:  make(map[string]*ZoneInstance),
+		config:      conf,
+		zones:       make(map[string]*ZoneInstance),
+		dnsServeMux: dns.NewServeMux(),
 	}
 	err := srv.populateConfig()
 	if err != nil {
@@ -54,8 +57,9 @@ func NewServer(conf *config.WrappedServerConfig) *Server {
 // NewMockServer is used purely for config validation, and as such it does not return the server object
 func NewMockServer(conf *config.WrappedServerConfig) error {
 	srv := &Server{
-		config: conf,
-		zones:  make(map[string]*ZoneInstance),
+		config:      conf,
+		zones:       make(map[string]*ZoneInstance),
+		dnsServeMux: dns.NewServeMux(),
 	}
 	err := srv.populateConfig()
 	if err != nil {
@@ -67,22 +71,43 @@ func NewMockServer(conf *config.WrappedServerConfig) error {
 func (srv *Server) populateConfig() error {
 	srv.configMu.Lock()
 	defer srv.configMu.Unlock()
+	if srv.config.DNSConfig.EnableTailscale && srv.tailscaleClient == nil {
+		srv.tailscaleClient = new(tailscale.Tailscale)
+	}
 	for name, conf := range srv.config.DNSConfig.Zones {
 		// If the zone does not have a forward config and is set up to forward queries, use the default forward config
 		if !conf.NoForward && conf.Forward == nil {
 			conf.Forward = srv.config.DNSConfig.DefaultForwardConfig
 		}
+		if name[len(name)-1] != '.' {
+			return fmt.Errorf("zone name must end with a period character (%s)", name)
+		}
+		util.Logger.Debug().Str("zone", name).Msg("Loading config")
 		// If the zone already exists in the map, we do not want to overwrite it as that would break the DNS query handler (since hot-reloading is supported)
 		if _, ok := srv.zones[name]; !ok {
+			util.Logger.Debug().Str("zone", name).Msg("Zone does not exist, creating")
 			zi, err := NewZoneInstance(name, *conf)
 			if err != nil {
 				return err
 			}
+			if zi.Tailscale != nil {
+				util.Logger.Debug().Str("zone", name).Msg("Enabling Tailscale")
+				zi.TSClient = srv.tailscaleClient
+			}
 			srv.zones[name] = zi
+			srv.dnsServeMux.Handle(zi.Name, zi)
 		} else {
+			util.Logger.Debug().Str("zone", name).Msg("Found zone, initializing with new config")
 			err := srv.zones[name].Initialize(*conf)
 			if err != nil {
 				return err
+			}
+			if srv.zones[name].Tailscale != nil && srv.zones[name].TSClient == nil {
+				util.Logger.Debug().Str("zone", name).Msg("Enabling Tailscale")
+				srv.zones[name].TSClient = srv.tailscaleClient
+			} else if srv.zones[name].Tailscale == nil {
+				util.Logger.Debug().Str("zone", name).Msg("Disabling Tailscale")
+				srv.zones[name].TSClient = nil
 			}
 		}
 
@@ -112,34 +137,19 @@ func (srv *Server) Run() {
 		}()
 	}
 
-	tsClient := tailscale.Tailscale{}
-	err = tsClient.Start()
-	if err != nil {
-		return
-	} else {
+	if srv.config.DNSConfig.EnableTailscale {
+		err = srv.tailscaleClient.Start()
+		if err != nil {
+			util.Logger.Fatal().Err(err).Msg("Failed to start tailscale")
+			return
+		}
 		util.Logger.Info().Msg("Tailscale client started")
 	}
 
-	// |---------------------|
-	// | Run DNS Listeners   |
-	// |---------------------|
-	//go func() {
-	//	util.Logger.Info().Msg("Starting TCP DNS server")
-	//	if err := s.tcpDnsServer.ListenAndServe(); err != nil {
-	//		util.Logger.Fatal().Err(err).Msg("Failed to start TCP DNS server")
-	//	}
-	//}()
-	//
-	//go func() {
-	//	util.Logger.Info().Msg("Starting UDP DNS server")
-	//	if err := s.udpDnsServer.ListenAndServe(); err != nil {
-	//		util.Logger.Fatal().Err(err).Msg("Failed to start UDP DNS server")
-	//	}
-	//}()
-
 	// Run the things!
 	go srv.RunHTTPControlSocket(runCtx)
-	srv.RunDNSListeners(runCtx)
+	go srv.servePlainDNS(runCtx, &srv.dnsWg, "udp")
+	go srv.servePlainDNS(runCtx, &srv.dnsWg, "tcp")
 
 	// Await stop signals
 	<-runCtx.Done()
@@ -169,16 +179,17 @@ func (srv *Server) Run() {
 // || Actual DNS Server Stuff ||
 // ||=========================||
 
-func (srv *Server) RunDNSListeners(ctx context.Context) {
-	go srv.servePlainDNS(ctx, &srv.dnsWg, "udp")
-	go srv.servePlainDNS(ctx, &srv.dnsWg, "tcp")
-}
+//func (srv *Server) RunDNSListeners(ctx context.Context) {
+//	go srv.servePlainDNS(ctx, &srv.dnsWg, "udp")
+//	go srv.servePlainDNS(ctx, &srv.dnsWg, "tcp")
+//}
 
 func (srv *Server) servePlainDNS(ctx context.Context, wg *sync.WaitGroup, net string) {
 	addr := fmt.Sprintf(":%d", srv.config.DNSConfig.DefaultPort)
 	ns := &dns.Server{
 		Addr:          addr,
 		Net:           net,
+		Handler:       srv.dnsServeMux,
 		MaxTCPQueries: 2048,
 		ReusePort:     true,
 	}
@@ -205,6 +216,31 @@ func (srv *Server) servePlainDNS(ctx context.Context, wg *sync.WaitGroup, net st
 	}
 
 	util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Stopped DNS server")
+}
+
+// ServeDNS implements the dns.Handler interface.
+func (srv *Server) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+	for _, q := range r.Question {
+		util.Logger.Info().Str("question", q.Name).Str("qtype", qtypeToString(dns.Type(q.Qtype))).Msg("Received question")
+	}
+}
+
+func qtypeToString(qtype dns.Type) string {
+	switch qtype {
+	case dns.Type(dns.TypeA):
+		return "A"
+	case dns.Type(dns.TypeAAAA):
+		return "AAAA"
+	case dns.Type(dns.TypeCNAME):
+		return "CNAME"
+	case dns.Type(dns.TypePTR):
+		return "PTR"
+	case dns.Type(dns.TypeMX):
+		return "MX"
+	case dns.Type(dns.TypeTXT):
+		return "TXT"
+	}
+	return ""
 }
 
 // ||===========================||
