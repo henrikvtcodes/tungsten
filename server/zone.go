@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"github.com/henrikvtcodes/tungsten/config"
 	"github.com/henrikvtcodes/tungsten/config/records"
 	"github.com/henrikvtcodes/tungsten/util"
@@ -20,13 +21,14 @@ type ZoneInstance struct {
 	Tailscale *config.TailscaleRecords
 	TSClient  *tailscale.Tailscale
 
-	log zerolog.Logger
+	baseLog zerolog.Logger
+	qLog    zerolog.Logger
 }
 
 func NewZoneInstance(name string, zone config.Zone) (*ZoneInstance, error) {
 	zi := ZoneInstance{
-		Name: name,
-		log:  util.Logger.With().Str("zone", name).Logger(),
+		Name:    name,
+		baseLog: util.Logger.With().Str("zone", name).Logger(),
 	}
 
 	err := zi.Initialize(zone)
@@ -65,83 +67,84 @@ func (zi *ZoneInstance) Populate() error {
 	return nil
 }
 
-func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	util.Logger.Info().Str("zone", zi.Name).Msgf("Query received from %s", w.RemoteAddr())
-	for _, q := range r.Question {
-		util.Logger.Info().Str("question", q.Name).Str("qtype", qtypeToString(dns.Type(q.Qtype))).Msg("Received question")
+func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
+	question := req.Question[0]
+	zi.qLog = zi.baseLog.With().Str("qtype", qtypeToString(dns.Type(question.Qtype))).Str("qname", question.Name).Str("client", w.RemoteAddr().String()).Logger()
+	zi.qLog.Info().Msgf("Question received via %s", w.LocalAddr().String())
+
+	var (
+		res *dns.Msg
+	)
+
+	if msg, ok := zi.HandleTailscale(question); ok {
+		res = msg
+	} else {
+		zi.qLog.Warn().Msg("No response found")
+		res = new(dns.Msg)
 	}
 
-	msg, ok := zi.HandleTailscale(r.Question, &w)
-	if !ok {
-		return
-	}
+	res.SetReply(req)
 
-	msg.SetReply(r)
-
-	err := w.WriteMsg(msg)
+	err := w.WriteMsg(res)
 	if err != nil {
-		zi.log.Error().Err(err).Msg("Failed to write response")
+		zi.qLog.Error().Err(err).Msg("Failed to write response")
 	}
 
-	//err = w.Close()
-	//if err != nil {
-	//	zi.log.Error().Err(err).Msg("Failed to close response")
-	//}
-	zi.log.Info().Msgf("Query responded to %s", w.RemoteAddr())
+	zi.qLog.Info().Msg("Query responded")
 }
 
-func (zi *ZoneInstance) HandleTailscale(q []dns.Question, w *dns.ResponseWriter) (*dns.Msg, bool) {
-	for _, q := range q {
-		log := util.Logger.With().Str("qtype", qtypeToString(dns.Type(q.Qtype))).Str("question", q.Name).Logger()
-		log.Debug().Msgf("Handling query with tailscale")
+func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
+	zi.qLog.Debug().Msgf("Handling query with Tailscale")
+	var (
+		msg     *dns.Msg
+		answers []dns.RR
+		found   = false
+	)
 
-		sub, _ := strings.CutSuffix(q.Name, zi.Name)
-		log.Debug().Msgf("Subdomain: %s", sub)
-		if m, ok := strings.CutSuffix(sub, zi.Tailscale.MachinesSubdomain); ok {
-			log.Debug().Msgf("Machine: %s Suffix: %s", m, zi.Tailscale.MachinesSubdomain)
-			for name, mEntry := range zi.TSClient.MachineEntries {
-				log.Debug().Msgf("Checking machine with name %s", name)
-				if name == m {
-					log.Debug().Msgf("Found machine entry: %s", m)
-					var answers []dns.RR
-					switch q.Qtype {
-					case dns.TypeA:
-						log.Debug().Msgf("Answering for A")
-						answers = util.ARecord(q.Name, mEntry.ARecords)
-					case dns.TypeAAAA:
-						log.Debug().Msgf("Answering for AAAA")
-						answers = util.AAAARecord(q.Name, mEntry.AAAARecords)
-					}
-
-					m := new(dns.Msg)
-					//m.Authoritative, m.RecursionAvailable = true, true
-					m.Answer = answers
-					return m, true
-					//break
-				} else {
-
-				}
+	sub, _ := strings.CutSuffix(q.Name, zi.Name)
+	if m, ok := strings.CutSuffix(sub, zi.Tailscale.MachinesSubdomain); ok {
+		if mEntry, ok := zi.TSClient.FindMachine(m); ok {
+			zi.qLog.Debug().Msgf("Found machine entry: %s", m)
+			found = true
+			switch q.Qtype {
+			case dns.TypeA:
+				zi.qLog.Debug().Msgf("Answering for A")
+				answers = util.ARecord(q.Name, mEntry.ARecords, zi.Tailscale.MachineTtl)
+			case dns.TypeAAAA:
+				zi.qLog.Debug().Msgf("Answering for AAAA")
+				answers = util.AAAARecord(q.Name, mEntry.AAAARecords, zi.Tailscale.MachineTtl)
+			default:
+				found = false
 			}
+
 		}
-		//else if m, ok := strings.CutSuffix(sub, zi.Tailscale.CnameSubdomain); ok {
-		//	for name, mEntry := range zi.TSClient.CNameEntries {
-		//		if name == m {
-		//			var answers []dns.RR
-		//			switch q.Qtype {
-		//			case dns.TypeA:
-		//				answers = util.ARecord(q.Name, mEntry.ARecords)
-		//			case dns.TypeAAAA:
-		//				answers = util.AAAARecord(q.Name, mEntry.AAAARecords)
-		//			}
-		//
-		//			m := new(dns.Msg)
-		//			m.Authoritative, m.RecursionAvailable = true, true
-		//			m.Answer = answers
-		//			_ = w.WriteMsg(m)
-		//			break
-		//		}
-		//	}
-		//}
+	} else if c, ok := strings.CutSuffix(sub, zi.Tailscale.CnameSubdomain); ok {
+		if cEntry, ok := zi.TSClient.FindCNameEntry(c); ok {
+			zi.qLog.Debug().Msgf("Found cname entry: %s", cEntry.Name)
+			found = true
+
+			var targetFqdns []string
+			for _, targ := range cEntry.CNameTo {
+				targetFqdns = append(targetFqdns, fmt.Sprintf("%s%s%s", targ, zi.Tailscale.CnameSubdomain, zi.Name))
+			}
+
+			switch q.Qtype {
+			case dns.TypeCNAME:
+				zi.qLog.Debug().Msgf("Answering for CNAME")
+				answers = util.CnameRecord(q.Name, targetFqdns, zi.Tailscale.CnameTtl)
+			default:
+				found = false
+			}
+
+		}
 	}
+
+	if found {
+		msg = new(dns.Msg)
+		//msg.Authoritative, msg.RecursionAvailable = true, true
+		msg.Answer = answers
+		return msg, found
+	}
+
 	return nil, false
 }
