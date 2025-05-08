@@ -12,9 +12,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
+	"tailscale.com/util/slicesx"
 	"time"
 
 	"github.com/henrikvtcodes/tungsten/util"
@@ -72,9 +74,14 @@ func NewMockServer(conf *config.WrappedServerConfig) error {
 func (srv *Server) populateConfig() error {
 	srv.configMu.Lock()
 	defer srv.configMu.Unlock()
+
+	// Init new tailscale client if needed
 	if srv.config.DNSConfig.EnableTailscale && srv.tailscaleClient == nil {
 		srv.tailscaleClient = new(tailscale.Tailscale)
 	}
+
+	activeZones := make(map[string]*ZoneInstance)
+
 	for name, conf := range srv.config.DNSConfig.Zones {
 		// If the zone does not have a forward config and is set up to forward queries, use the default forward config
 		if !conf.NoForward && conf.Forward == nil {
@@ -87,10 +94,25 @@ func (srv *Server) populateConfig() error {
 			return fmt.Errorf("zone name must not start with a period character (%s)", name)
 		}
 		util.Logger.Debug().Str("zone", name).Msg("Loading config")
-		// If the zone already exists in the map, we do not want to overwrite it as that would break the DNS query handler (since hot-reloading is supported)
-		if _, ok := srv.zones[name]; !ok {
+		if zi, ok := srv.zones[name]; ok {
+			// Reinitialize existing zone
+			util.Logger.Debug().Str("zone", name).Msg("Found zone, initializing with new config")
+			err := zi.Initialize(*conf)
+			if err != nil {
+				return err
+			}
+			if zi.Tailscale != nil && zi.TSClient == nil {
+				util.Logger.Debug().Str("zone", name).Msg("Enabling Tailscale")
+				srv.zones[name].TSClient = srv.tailscaleClient
+			} else if zi.Tailscale == nil && zi.TSClient != nil {
+				util.Logger.Debug().Str("zone", name).Msg("Disabling Tailscale")
+				srv.zones[name].TSClient = nil
+			}
+			activeZones[name] = zi
+		} else {
+			// If the zone already exists in the map, we do not want to overwrite it as that would break the DNS query handler (since hot-reloading is supported)
 			util.Logger.Debug().Str("zone", name).Msg("Zone does not exist, creating")
-			zi, err := NewZoneInstance(name, *conf)
+			zi, err = NewZoneInstance(name, *conf)
 			if err != nil {
 				return err
 			}
@@ -98,24 +120,22 @@ func (srv *Server) populateConfig() error {
 				util.Logger.Debug().Str("zone", name).Msg("Enabling Tailscale")
 				zi.TSClient = srv.tailscaleClient
 			}
-			srv.zones[name] = zi
+			activeZones[name] = zi
 			srv.dnsServeMux.Handle(zi.Name, zi)
-		} else {
-			util.Logger.Debug().Str("zone", name).Msg("Found zone, initializing with new config")
-			err := srv.zones[name].Initialize(*conf)
-			if err != nil {
-				return err
-			}
-			if srv.zones[name].Tailscale != nil && srv.zones[name].TSClient == nil {
-				util.Logger.Debug().Str("zone", name).Msg("Enabling Tailscale")
-				srv.zones[name].TSClient = srv.tailscaleClient
-			} else if srv.zones[name].Tailscale == nil {
-				util.Logger.Debug().Str("zone", name).Msg("Disabling Tailscale")
-				srv.zones[name].TSClient = nil
-			}
 		}
-
 	}
+
+	prevZones := slicesx.MapKeys(srv.zones)
+	currZones := slicesx.MapKeys(activeZones)
+	for _, z := range prevZones {
+		if slices.Index(currZones, z) == -1 {
+			srv.dnsServeMux.HandleRemove(z)
+			util.Logger.Info().Msgf("Removing zone %s", z)
+		}
+	}
+
+	srv.zones = activeZones
+
 	return nil
 }
 
@@ -285,7 +305,7 @@ func (srv *Server) startHTTPControlSocket() {
 	}
 	unixListener, err := net.Listen("unix", absSocketPath)
 	if err != nil {
-		util.Logger.Fatal().Err(err).Msgf("Error creating unix control socket at %s", srv.config.SocketPath)
+		util.Logger.Fatal().Err(err).Msgf("Error creating unix control socket at %s. Try manually deleting the socket file", absSocketPath)
 	}
 	srv.config.SocketPath = absSocketPath
 
