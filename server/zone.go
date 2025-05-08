@@ -82,8 +82,10 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 
 	if msg, ok := zi.HandleRecords(question); ok {
 		res = msg
-	} else if msg, ok = zi.HandleTailscale(question); ok {
-		res = msg
+	} else if zi.Tailscale != nil {
+		if msg, ok = zi.HandleTailscale(question); ok {
+			res = msg
+		}
 	} else {
 		zi.qLog.Warn().Msgf("No response found (%s)", question.Name)
 		res = new(dns.Msg)
