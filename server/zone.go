@@ -80,7 +80,9 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		res *dns.Msg
 	)
 
-	if msg, ok := zi.HandleTailscale(question); ok {
+	if msg, ok := zi.HandleRecords(question); ok {
+		res = msg
+	} else if msg, ok = zi.HandleTailscale(question); ok {
 		res = msg
 	} else {
 		zi.qLog.Warn().Msgf("No response found (%s)", question.Name)
@@ -95,6 +97,49 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	}
 
 	zi.qLog.Info().Str("microseconds", strconv.FormatInt(time.Since(start).Microseconds(), 10)).Msgf("Query responded (%s)", question.Name)
+}
+
+func (zi *ZoneInstance) HandleRecords(q dns.Question) (*dns.Msg, bool) {
+	var (
+		msg     *dns.Msg
+		answers []dns.RR
+		found   = false
+	)
+	subdomain, _ := strings.CutSuffix(q.Name, fmt.Sprintf(".%s", zi.Name))
+
+	switch q.Qtype {
+	case dns.TypeA:
+		if recs, ok := zi.StaticRecords.A[subdomain]; ok {
+			found = true
+			for _, rec := range recs {
+				answers = append(answers, util.ARecord(q.Name, net.ParseIP(rec.GetAddress()), rec.GetTtl()))
+			}
+		}
+	case dns.TypeAAAA:
+		if recs, ok := zi.StaticRecords.AAAA[subdomain]; ok {
+			found = true
+			for _, rec := range recs {
+				answers = append(answers, util.AAAARecord(q.Name, net.ParseIP(rec.GetAddress()), rec.GetTtl()))
+			}
+		}
+	case dns.TypeCNAME:
+		if recs, ok := zi.StaticRecords.CNAME[subdomain]; ok {
+			found = true
+			for _, rec := range recs {
+				answers = append(answers, util.CnameRecord(q.Name, rec.GetTarget(), rec.GetTtl()))
+
+			}
+		}
+	}
+
+	if found {
+		zi.qLog.Debug().Msgf("Handled query with Static Records (%s)", q.Name)
+		msg = new(dns.Msg)
+		//msg.Authoritative, msg.RecursionAvailable = true, true
+		msg.Answer = answers
+		return msg, found
+	}
+	return nil, false
 }
 
 func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
@@ -112,10 +157,10 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 			switch q.Qtype {
 			case dns.TypeA:
 				zi.qLog.Debug().Msgf("Answering for A")
-				answers = util.ARecord(q.Name, mEntry.ARecords, zi.Tailscale.MachineTtl)
+				answers = util.ARecordList(q.Name, mEntry.ARecords, zi.Tailscale.MachineTtl)
 			case dns.TypeAAAA:
 				zi.qLog.Debug().Msgf("Answering for AAAA")
-				answers = util.AAAARecord(q.Name, mEntry.AAAARecords, zi.Tailscale.MachineTtl)
+				answers = util.AAAARecordList(q.Name, mEntry.AAAARecords, zi.Tailscale.MachineTtl)
 			default:
 				found = false
 			}
@@ -128,13 +173,13 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 
 			var targetFqdns []string
 			for _, targ := range cEntry.CNameTo {
-				targetFqdns = append(targetFqdns, fmt.Sprintf("%s%s%s", targ, zi.Tailscale.CnameSubdomain, zi.Name))
+				targetFqdns = append(targetFqdns, fmt.Sprintf("%s%s%s", targ, zi.Tailscale.MachinesSubdomain, zi.Name))
 			}
 
 			switch q.Qtype {
 			case dns.TypeCNAME:
 				zi.qLog.Debug().Msgf("Answering for CNAME")
-				answers = util.CnameRecord(q.Name, targetFqdns, zi.Tailscale.CnameTtl)
+				answers = util.CnameRecordList(q.Name, targetFqdns, zi.Tailscale.CnameTtl)
 			default:
 				found = false
 			}
