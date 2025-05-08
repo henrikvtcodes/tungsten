@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -79,8 +80,11 @@ func (srv *Server) populateConfig() error {
 		if !conf.NoForward && conf.Forward == nil {
 			conf.Forward = srv.config.DNSConfig.DefaultForwardConfig
 		}
-		if name[len(name)-1] != '.' {
+		if !strings.HasSuffix(name, ".") {
 			return fmt.Errorf("zone name must end with a period character (%s)", name)
+		}
+		if strings.HasPrefix(name, ".") {
+			return fmt.Errorf("zone name must not start with a period character (%s)", name)
 		}
 		util.Logger.Debug().Str("zone", name).Msg("Loading config")
 		// If the zone already exists in the map, we do not want to overwrite it as that would break the DNS query handler (since hot-reloading is supported)
