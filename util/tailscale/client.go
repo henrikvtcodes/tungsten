@@ -5,7 +5,6 @@ package tailscale
 
 import (
 	"context"
-	"fmt"
 	"github.com/henrikvtcodes/tungsten/util"
 	"net"
 	"strings"
@@ -38,7 +37,6 @@ type Tailscale struct {
 	lc       *tsLocal.Client
 
 	mu             sync.RWMutex
-	Entries        map[string]map[string][]string
 	MachineEntries map[string]MachineEntry
 	CNameEntries   map[string]CNameEntry
 }
@@ -95,7 +93,7 @@ func (t *Tailscale) watchIPNBus() {
 			n, err := watcher.Next()
 			if err != nil {
 				// If we're unable to read, then close watcher and reconnect
-				watcher.Close()
+				_ = watcher.Close()
 				break
 			}
 			t.processNetMap(n.NetMap)
@@ -127,25 +125,17 @@ func (t *Tailscale) processNetMap(nm *netmap.NetworkMap) {
 		}
 
 		hostname := node.ComputedName()
-		entry, ok := entries[hostname]
 		mEntry, mOk := machineEntries[hostname]
-		if !ok {
-			entry = map[string][]string{}
-		}
+
 		if !mOk {
 			mEntry = MachineEntry{}
 		}
 
-		// Currently entry["A"/"AAAA"] will have max one element
 		for _, pfx := range node.Addresses().AsSlice() {
 			addr := pfx.Addr()
 			if addr.Is4() {
-				//util.Logger.Debug().Msgf("Found IPv4 address: %v for node %s", addr, hostname)
-				entry["A"] = append(entry["A"], addr.String())
 				mEntry.ARecords = append(mEntry.ARecords, net.ParseIP(addr.String()))
 			} else if addr.Is6() {
-				//util.Logger.Debug().Msgf("Found IPv6 address: %v for node %s", addr, hostname)
-				entry["AAAA"] = append(entry["AAAA"], addr.String())
 				mEntry.AAAARecords = append(mEntry.AAAARecords, net.ParseIP(addr.String()))
 			}
 		}
@@ -154,33 +144,43 @@ func (t *Tailscale) processNetMap(nm *netmap.NetworkMap) {
 		if node.Tags().Len() > 0 {
 			for _, raw := range node.Tags().AsSlice() {
 				if tag, ok := strings.CutPrefix(raw, "tag:cname-"); ok {
-					if _, ok := entries[tag]; !ok {
-						entries[tag] = map[string][]string{}
-					}
 					if _, ok := cnameEntries[tag]; !ok {
 						cnameEntries[tag] = CNameEntry{}
 					}
 
-					target := fmt.Sprintf("%s.%s.", hostname, t.zone)
-
-					cnameEntries[tag] = CNameEntry{Name: tag, CNameTo: append(cnameEntries[tag].CNameTo, target)}
-					entries[tag]["CNAME"] = append(entries[tag]["CNAME"], target)
+					cnameEntries[tag] = CNameEntry{Name: tag, CNameTo: append(cnameEntries[tag].CNameTo, hostname)}
 				}
 			}
 		}
 
-		entries[hostname] = entry
 		machineEntries[hostname] = mEntry
 	}
 
 	t.mu.Lock()
-	t.Entries = entries
 	t.MachineEntries = machineEntries
 	t.CNameEntries = cnameEntries
 	t.mu.Unlock()
 	util.Logger.Debug().Msgf("Updated %d Tailscale Entries", len(entries))
 }
 
-func (t *Tailscale) GenerateDNSRecords() {
+func (t *Tailscale) FindMachine(hostname string) (*MachineEntry, bool) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	for _, m := range t.MachineEntries {
+		if m.Name == hostname {
+			return &m, true
+		}
+	}
+	return nil, false
+}
 
+func (t *Tailscale) FindCNameEntry(subdomain string) (*CNameEntry, bool) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	for _, c := range t.CNameEntries {
+		if subdomain == c.Name {
+			return &c, true
+		}
+	}
+	return nil, false
 }
