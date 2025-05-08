@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/henrikvtcodes/tungsten/util"
+	"net"
 	"strings"
 	"sync"
 	tsLocal "tailscale.com/client/local"
@@ -19,8 +20,8 @@ import (
 
 type MachineEntry struct {
 	Name        string
-	ARecords    []string
-	AAAARecords []string
+	ARecords    []net.IP
+	AAAARecords []net.IP
 }
 
 type CNameEntry struct {
@@ -139,11 +140,13 @@ func (t *Tailscale) processNetMap(nm *netmap.NetworkMap) {
 		for _, pfx := range node.Addresses().AsSlice() {
 			addr := pfx.Addr()
 			if addr.Is4() {
+				//util.Logger.Debug().Msgf("Found IPv4 address: %v for node %s", addr, hostname)
 				entry["A"] = append(entry["A"], addr.String())
-				mEntry.ARecords = append(mEntry.ARecords, pfx.String())
+				mEntry.ARecords = append(mEntry.ARecords, net.ParseIP(addr.String()))
 			} else if addr.Is6() {
+				//util.Logger.Debug().Msgf("Found IPv6 address: %v for node %s", addr, hostname)
 				entry["AAAA"] = append(entry["AAAA"], addr.String())
-				mEntry.AAAARecords = append(mEntry.AAAARecords, pfx.String())
+				mEntry.AAAARecords = append(mEntry.AAAARecords, net.ParseIP(addr.String()))
 			}
 		}
 
@@ -167,6 +170,7 @@ func (t *Tailscale) processNetMap(nm *netmap.NetworkMap) {
 		}
 
 		entries[hostname] = entry
+		machineEntries[hostname] = mEntry
 	}
 
 	t.mu.Lock()
