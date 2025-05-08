@@ -8,7 +8,10 @@ import (
 	"github.com/henrikvtcodes/tungsten/util/tailscale"
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
+	"net"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type ZoneInstance struct {
@@ -68,9 +71,10 @@ func (zi *ZoneInstance) Populate() error {
 }
 
 func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
+	start := time.Now()
 	question := req.Question[0]
-	zi.qLog = zi.baseLog.With().Str("qtype", qtypeToString(dns.Type(question.Qtype))).Str("qname", question.Name).Str("client", w.RemoteAddr().String()).Logger()
-	zi.qLog.Info().Msgf("Question received via %s", w.LocalAddr().String())
+	zi.qLog = zi.baseLog.With().Str("qtype", qtypeToString(dns.Type(question.Qtype))).Logger()
+	zi.qLog.Info().Msgf("Question received (%s)", question.Name)
 
 	var (
 		res *dns.Msg
@@ -79,7 +83,7 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	if msg, ok := zi.HandleTailscale(question); ok {
 		res = msg
 	} else {
-		zi.qLog.Warn().Msg("No response found")
+		zi.qLog.Warn().Msgf("No response found (%s)", question.Name)
 		res = new(dns.Msg)
 	}
 
@@ -87,14 +91,13 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 
 	err := w.WriteMsg(res)
 	if err != nil {
-		zi.qLog.Error().Err(err).Msg("Failed to write response")
+		zi.qLog.Error().Err(err).Msgf("Failed to write response (%s)", question.Name)
 	}
 
-	zi.qLog.Info().Msg("Query responded")
+	zi.qLog.Info().Str("microseconds", strconv.FormatInt(time.Since(start).Microseconds(), 10)).Msgf("Query responded (%s)", question.Name)
 }
 
 func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
-	zi.qLog.Debug().Msgf("Handling query with Tailscale")
 	var (
 		msg     *dns.Msg
 		answers []dns.RR
@@ -140,6 +143,7 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 	}
 
 	if found {
+		zi.qLog.Debug().Msgf("Handled query with Tailscale (%s)", q.Name)
 		msg = new(dns.Msg)
 		//msg.Authoritative, msg.RecursionAvailable = true, true
 		msg.Answer = answers
