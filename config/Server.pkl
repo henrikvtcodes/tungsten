@@ -30,7 +30,9 @@ class Zone {
 
 class TailscaleRecords {
   machinesSubdomain: String = ".ts."
+  machineTtl: UInt32 = 3600
   cnameSubdomain: String = "."
+  cnameTtl: UInt32 = 3600
 }
 
 class ForwardConfig {
