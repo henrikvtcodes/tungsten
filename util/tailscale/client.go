@@ -106,11 +106,9 @@ func (t *Tailscale) processNetMap(nm *netmap.NetworkMap) {
 		return
 	}
 
-	util.Logger.Debug().Msgf("Self tags: %+v", nm.SelfNode.Tags().AsSlice())
 	nodes := []tailcfg.NodeView{nm.SelfNode}
 	nodes = append(nodes, nm.Peers...)
 
-	entries := map[string]map[string][]string{}
 	machineEntries := map[string]MachineEntry{}
 	cnameEntries := map[string]CNameEntry{}
 	for _, node := range nodes {
@@ -160,14 +158,16 @@ func (t *Tailscale) processNetMap(nm *netmap.NetworkMap) {
 	t.MachineEntries = machineEntries
 	t.CNameEntries = cnameEntries
 	t.mu.Unlock()
-	util.Logger.Debug().Msgf("Updated %d Tailscale Entries", len(entries))
+	util.Logger.Debug().Msgf("Updated %d Tailscale Machine Entries", len(t.MachineEntries))
+	util.Logger.Debug().Msgf("Updated %d Tailscale CNAME Entries", len(t.CNameEntries))
+
 }
 
 func (t *Tailscale) FindMachine(hostname string) (*MachineEntry, bool) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	for _, m := range t.MachineEntries {
-		if m.Name == hostname {
+	for name, m := range t.MachineEntries {
+		if name == hostname {
 			return &m, true
 		}
 	}
@@ -177,8 +177,8 @@ func (t *Tailscale) FindMachine(hostname string) (*MachineEntry, bool) {
 func (t *Tailscale) FindCNameEntry(subdomain string) (*CNameEntry, bool) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	for _, c := range t.CNameEntries {
-		if subdomain == c.Name {
+	for name, c := range t.CNameEntries {
+		if name == subdomain {
 			return &c, true
 		}
 	}
