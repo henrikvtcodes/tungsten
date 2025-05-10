@@ -26,6 +26,8 @@ class Zone {
 
   forward: ForwardConfig?
   noForward: Boolean = false
+
+  recursionEnabled: Boolean = false
 }
 
 class TailscaleRecords {

@@ -87,12 +87,16 @@ func (srv *Server) populateConfig() error {
 		if !conf.NoForward && conf.Forward == nil {
 			conf.Forward = srv.config.DNSConfig.DefaultForwardConfig
 		}
+
+		// Some general validation logic
 		if !strings.HasSuffix(name, ".") {
 			return fmt.Errorf("zone name must end with a period character (%s)", name)
 		}
 		if strings.HasPrefix(name, ".") {
 			return fmt.Errorf("zone name must not start with a period character (%s)", name)
 		}
+
+		// Determine whether we are hot-reloading an existing zone or not
 		util.Logger.Debug().Str("zone", name).Msg("Loading config")
 		if zi, ok := srv.zones[name]; ok {
 			// Reinitialize existing zone
@@ -130,6 +134,7 @@ func (srv *Server) populateConfig() error {
 	for _, z := range prevZones {
 		if slices.Index(currZones, z) == -1 {
 			srv.dnsServeMux.HandleRemove(z)
+			srv.zones[z].Stop()
 			util.Logger.Info().Msgf("Removing zone %s", z)
 		}
 	}
@@ -202,11 +207,6 @@ func (srv *Server) Run() {
 // ||=========================||
 // || Actual DNS Server Stuff ||
 // ||=========================||
-
-//func (srv *Server) RunDNSListeners(ctx context.Context) {
-//	go srv.servePlainDNS(ctx, &srv.dnsWg, "udp")
-//	go srv.servePlainDNS(ctx, &srv.dnsWg, "tcp")
-//}
 
 func (srv *Server) servePlainDNS(ctx context.Context, wg *sync.WaitGroup, net string) {
 	addr := fmt.Sprintf(":%d", srv.config.DNSConfig.DefaultPort)

@@ -8,6 +8,7 @@ require (
 	github.com/apple/pkl-go v0.10.0
 	github.com/carlmjohnson/truthy v0.23.1
 	github.com/miekg/dns v1.1.65
+	github.com/miekg/unbound v0.0.0-20240613151107-1f0f3b231f04
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.9.1
 	github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31

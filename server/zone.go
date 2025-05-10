@@ -7,6 +7,7 @@ import (
 	"github.com/henrikvtcodes/tungsten/util"
 	"github.com/henrikvtcodes/tungsten/util/tailscale"
 	"github.com/miekg/dns"
+	"github.com/miekg/unbound"
 	"github.com/rs/zerolog"
 	"net"
 	"strconv"
@@ -20,6 +21,10 @@ type ZoneInstance struct {
 	StaticRecords *records.RecordsObject
 	ForwardConfig *config.ForwardConfig
 	NoForward     bool
+	RecursionEnabled bool
+	unbound          *unbound.Unbound
+	unboundTcp       *unbound.Unbound
+	unboundUdp       *unbound.Unbound
 
 	Tailscale *config.TailscaleRecords
 	TSClient  *tailscale.Tailscale
@@ -48,12 +53,18 @@ func (zi *ZoneInstance) Initialize(zone config.Zone) error {
 	zi.ForwardConfig = zone.Forward
 	zi.NoForward = zone.NoForward
 	zi.Tailscale = zone.Tailscale
+	zi.RecursionEnabled = zone.RecursionEnabled
 
 	err := zi.Populate()
 	if err != nil {
 		return err
 	}
 
+	if zi.RecursionEnabled {
+		zi.unboundTcp = unbound.New()
+		zi.unboundUdp = unbound.New()
+		zi.unboundTcp.SetOption("tcp-upstream:", "yes")
+	}
 	return nil
 }
 
@@ -198,4 +209,65 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 	}
 
 	return nil, false
+}
+	var (
+		msg     *dns.Msg
+		answers []dns.RR
+		found   = false
+	)
+
+	if found {
+		zi.qLog.Debug().Msgf("Handled query with Forwarder (%s)", q.Name)
+		msg = new(dns.Msg)
+		//msg.Authoritative, msg.RecursionAvailable = true, true
+		msg.Answer = answers
+		return msg, found
+	}
+
+	return nil, false
+}
+
+func (zi *ZoneInstance) HandleRecursiveResolve(q dns.Question, net string) (*dns.Msg, bool) {
+	var (
+		msg   *dns.Msg
+		found = false
+		res   *unbound.Result
+	)
+
+	err = nil
+
+	switch net {
+	case "tcp":
+		res, err = zi.unboundTcp.Resolve(q.Name, q.Qtype, q.Qclass)
+	case "udp":
+		res, err = zi.unboundUdp.Resolve(q.Name, q.Qtype, q.Qclass)
+	}
+
+	//rcode := dns.RcodeServerFailure
+	//if err == nil {
+	//	rcode = res.AnswerPacket.Rcode
+	//}
+	//rc, ok := dns.RcodeToString[rcode]
+	//if !ok {
+	//	rc = strconv.Itoa(rcode)
+	//}
+
+	if err != nil && res != nil {
+		found = true
+	}
+
+	if found {
+		zi.qLog.Debug().Msgf("Handled query with libunbound Recursor (%s)", q.Name)
+		msg = res.AnswerPacket
+		//msg.Authoritative, msg.RecursionAvailable = true, true
+		return msg, found
+	}
+
+	return nil, false
+}
+
+func (zi *ZoneInstance) Stop() error {
+	zi.unboundTcp.Destroy()
+	zi.unboundUdp.Destroy()
+	return nil
 }
