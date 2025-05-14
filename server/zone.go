@@ -84,7 +84,7 @@ func (zi *ZoneInstance) Populate() error {
 func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	start := time.Now()
 	question := req.Question[0]
-	zi.qLog = zi.baseLog.With().Str("qtype", qtypeToString(dns.Type(question.Qtype))).Logger()
+	zi.qLog = zi.baseLog.With().Str("qtype", qtypeToString(dns.Type(question.Qtype))).Str("localAddr", w.LocalAddr().Network()).Logger()
 	zi.qLog.Info().Msgf("Question received (%s)", question.Name)
 
 	var (
@@ -95,6 +95,10 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		res = msg
 	} else if zi.Tailscale != nil {
 		if msg, ok = zi.HandleTailscale(question); ok {
+			res = msg
+		}
+	} else if !zi.NoForward && zi.ForwardConfig != nil {
+		if msg, ok = zi.HandleForward(question); ok {
 			res = msg
 		}
 	} else {
@@ -210,6 +214,8 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 
 	return nil, false
 }
+
+func (zi *ZoneInstance) HandleForward(q dns.Question) (*dns.Msg, bool) {
 	var (
 		msg     *dns.Msg
 		answers []dns.RR
