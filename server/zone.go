@@ -271,7 +271,7 @@ func (zi *ZoneInstance) HandleRecursiveResolve(q dns.Question, net string) (*dns
 	//	rc = strconv.Itoa(rcode)
 	//}
 
-	if err != nil && res != nil {
+	if err == nil && res != nil {
 		found = true
 	}
 
