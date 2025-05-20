@@ -1,5 +1,7 @@
 {
   buildGoApplication,
+  pkgs,
+  pkl-go,
   ...
 }:
 buildGoApplication {
@@ -9,4 +11,15 @@ buildGoApplication {
   src = ./.;
   pwd = ./.;
   modules = ./gomod2nix.toml;
+
+  preBuild = ''
+  export PATH="$PATH:${pkgs.pkl}/bin"
+  ${pkl-go}/bin/pkl-gen-go config/Server.pkl
+  '';
+
+  buildInputs = with pkgs; [
+  unbound
+  unbound.lib
+
+  ];
 }

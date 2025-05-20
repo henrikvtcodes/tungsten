@@ -42,8 +42,10 @@
             gotools
             go-tools
             gomod2nix.packages.${system}.default
-            # packages.pkl-go
+            unbound.lib
+	        unbound
              packages.pkl-go
+             pkl
           ];
 
           TUNGSTEN_DEV_MODE = 1;
