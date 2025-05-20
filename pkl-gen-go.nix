@@ -18,6 +18,8 @@ buildGoModule rec {
     sha256 = "sha256-XjcQApsEBzaWdFK/QS+g0t2CO1zW9t7er4xiH8MnDO8=";
   };
   vendorHash = "sha256-YySJhQCboZJXwSJ9fTBkiIouErHMlwYcT8qHdtRyMQI=";
-  # pwd = ./.;
-  # modules = ./gomod2nix.toml;
+
+  preBuild = with pkgs; ''
+      ${gnused}/bin/sed -i "s|var Version = \"development\"|var Version = \"${version}\"|" cmd/pkl-gen-go/pkl-gen-go.go
+  '';
 }
