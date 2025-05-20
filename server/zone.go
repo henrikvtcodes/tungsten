@@ -88,22 +88,35 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	zi.qLog.Info().Msgf("Question received (%s)", question.Name)
 
 	var (
-		res *dns.Msg
+		res   = new(dns.Msg)
+		found = false
 	)
 
 	if msg, ok := zi.HandleRecords(question); ok {
 		res = msg
-	} else if zi.Tailscale != nil {
-		if msg, ok = zi.HandleTailscale(question); ok {
+		found = true
+	}
+	if zi.Tailscale != nil && !found {
+		if msg, ok := zi.HandleTailscale(question); ok {
 			res = msg
+			found = true
 		}
-	} else if !zi.NoForward && zi.ForwardConfig != nil {
-		if msg, ok = zi.HandleForward(question); ok {
+	}
+	if !zi.NoForward && zi.ForwardConfig != nil && !found {
+		if msg, ok := zi.HandleForward(question); ok {
 			res = msg
+			found = true
 		}
-	} else {
+	}
+	if zi.RecursionEnabled && !found {
+		if msg, ok := zi.HandleRecursiveResolve(question, w.LocalAddr().Network()); ok {
+			res = msg
+			found = true
+		}
+	}
+
+	if !found {
 		zi.qLog.Warn().Msgf("No response found (%s)", question.Name)
-		res = new(dns.Msg)
 	}
 
 	res.SetReply(req)
