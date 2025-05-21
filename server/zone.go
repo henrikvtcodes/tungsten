@@ -19,10 +19,12 @@ type ZoneInstance struct {
 	Name string
 
 	StaticRecords *records.RecordsObject
+
 	ForwardConfig *config.ForwardConfig
 	NoForward     bool
+	dnsClient     *dns.Client
+
 	RecursionEnabled bool
-	unbound          *unbound.Unbound
 	unboundTcp       *unbound.Unbound
 	unboundUdp       *unbound.Unbound
 
@@ -76,6 +78,11 @@ func (zi *ZoneInstance) Populate() error {
 		if err != nil {
 			return err
 		}
+		//servers := slicesx.Interleave(zi.ForwardConfig.Ipv6Addresses, zi.ForwardConfig.Ipv4Addresses)
+		//
+		//cConfig := dns.ClientConfig{
+		//	Servers: servers,
+		//}
 	}
 
 	return nil
@@ -130,6 +137,7 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 }
 
 func (zi *ZoneInstance) HandleRecords(q dns.Question) (*dns.Msg, bool) {
+	zi.qLog.Debug().Msgf("Handling query with Static Records (%s)", q.Name)
 	var (
 		msg     *dns.Msg
 		answers []dns.RR
@@ -163,7 +171,7 @@ func (zi *ZoneInstance) HandleRecords(q dns.Question) (*dns.Msg, bool) {
 	}
 
 	if found {
-		zi.qLog.Debug().Msgf("Handled query with Static Records (%s)", q.Name)
+		zi.qLog.Info().Msgf("Handled query with Static Records (%s)", q.Name)
 		msg = new(dns.Msg)
 		//msg.Authoritative, msg.RecursionAvailable = true, true
 		msg.Answer = answers
@@ -173,6 +181,7 @@ func (zi *ZoneInstance) HandleRecords(q dns.Question) (*dns.Msg, bool) {
 }
 
 func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
+	zi.qLog.Debug().Msgf("Handling query with Tailscale (%s)", q.Name)
 	var (
 		msg     *dns.Msg
 		answers []dns.RR
@@ -218,7 +227,7 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 	}
 
 	if found {
-		zi.qLog.Debug().Msgf("Handled query with Tailscale (%s)", q.Name)
+		zi.qLog.Info().Msgf("Handled query with Tailscale (%s)", q.Name)
 		msg = new(dns.Msg)
 		//msg.Authoritative, msg.RecursionAvailable = true, true
 		msg.Answer = answers
@@ -229,6 +238,7 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 }
 
 func (zi *ZoneInstance) HandleForward(q dns.Question) (*dns.Msg, bool) {
+	zi.qLog.Debug().Msgf("Handling query with Forwarder (%s)", q.Name)
 	var (
 		msg     *dns.Msg
 		answers []dns.RR
@@ -236,7 +246,7 @@ func (zi *ZoneInstance) HandleForward(q dns.Question) (*dns.Msg, bool) {
 	)
 
 	if found {
-		zi.qLog.Debug().Msgf("Handled query with Forwarder (%s)", q.Name)
+		zi.qLog.Info().Msgf("Handled query with Forwarder (%s)", q.Name)
 		msg = new(dns.Msg)
 		//msg.Authoritative, msg.RecursionAvailable = true, true
 		msg.Answer = answers
@@ -247,6 +257,7 @@ func (zi *ZoneInstance) HandleForward(q dns.Question) (*dns.Msg, bool) {
 }
 
 func (zi *ZoneInstance) HandleRecursiveResolve(q dns.Question, net string) (*dns.Msg, bool) {
+	zi.qLog.Debug().Msgf("Handling query with libunbound Recursor (%s)", q.Name)
 	var (
 		msg   *dns.Msg
 		found = false
@@ -276,7 +287,7 @@ func (zi *ZoneInstance) HandleRecursiveResolve(q dns.Question, net string) (*dns
 	}
 
 	if found {
-		zi.qLog.Debug().Msgf("Handled query with libunbound Recursor (%s)", q.Name)
+		zi.qLog.Info().Msgf("Handled query with libunbound Recursor (%s)", q.Name)
 		msg = res.AnswerPacket
 		//msg.Authoritative, msg.RecursionAvailable = true, true
 		return msg, found

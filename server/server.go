@@ -35,12 +35,14 @@ type Server struct {
 	httpControlServer        *http.Server
 	httpControlServerRunning bool
 
+	// Shared tailscale local client
 	tailscaleClient *tailscale.Tailscale
 
+	// dns stuff
 	dnsWg       sync.WaitGroup
 	dnsServeMux *dns.ServeMux
+	zones       map[string]*ZoneInstance
 
-	zones map[string]*ZoneInstance
 }
 
 func NewServer(conf *config.WrappedServerConfig) *Server {
