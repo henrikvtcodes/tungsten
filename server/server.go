@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/henrikvtcodes/tungsten/config"
 	"github.com/henrikvtcodes/tungsten/util/tailscale"
+	"github.com/prometheus/client_golang/prometheus"
 	"io/fs"
 	"net"
 	"net/http"
@@ -39,6 +40,9 @@ type Server struct {
 	dnsServeMux *dns.ServeMux
 	zones       map[string]*ZoneInstance
 
+	// prometheus metrics
+	promRegistry *prometheus.Registry
+	promMetrics  *util.DNSMetrics
 }
 
 func NewServer(conf *config.WrappedServerConfig) *Server {
@@ -46,6 +50,7 @@ func NewServer(conf *config.WrappedServerConfig) *Server {
 		config:      conf,
 		zones:       make(map[string]*ZoneInstance),
 		dnsServeMux: dns.NewServeMux(),
+		promMetrics: util.NewDNSMetrics(),
 	}
 	err := srv.populateConfig()
 	if err != nil {
@@ -141,6 +146,10 @@ func (srv *Server) populateConfig() error {
 	srv.zones = activeZones
 
 	return nil
+}
+
+func (srv *Server) setupPrometheusMetrics(registry *prometheus.Registry) {
+	srv.promMetrics.SetupAndRegisterCollectors(registry)
 }
 
 func (srv *Server) Run() {

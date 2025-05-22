@@ -34,14 +34,17 @@ type ZoneInstance struct {
 	Tailscale *config.TailscaleRecords
 	TSClient  *tailscale.Tailscale
 
-	baseLog zerolog.Logger
-	qLog    zerolog.Logger
+	baseLog     zerolog.Logger
+	qLog        zerolog.Logger
+	promMetrics *util.DNSMetrics
 }
 
-func NewZoneInstance(name string, zone config.Zone) (*ZoneInstance, error) {
+func NewZoneInstance(name string, zone config.Zone, metrics *util.DNSMetrics) (*ZoneInstance, error) {
 	zi := ZoneInstance{
-		Name:    name,
-		baseLog: util.Logger.With().Str("zone", name).Logger(),
+		Name:        name,
+		baseLog:     util.Logger.With().Str("zone", name).Logger(),
+		dnsClient:   new(dns.Client),
+		promMetrics: metrics,
 	}
 
 	err := zi.Initialize(zone)
@@ -105,18 +108,21 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	zi.qLog.Info().Msgf("Question received (%s)", question.Name)
 
 	var (
-		res   = new(dns.Msg)
-		found = false
+		res       = new(dns.Msg)
+		found     = false
+		responder = "fail"
 	)
 
 	if msg, ok := zi.HandleRecords(question); ok {
 		res = msg
 		found = true
+		responder = "records"
 	}
 	if zi.Tailscale != nil && !found {
 		if msg, ok := zi.HandleTailscale(question); ok {
 			res = msg
 			found = true
+			responder = "tailscale"
 		}
 	}
 	reqNet := w.LocalAddr().Network()
@@ -124,12 +130,14 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		if msg, ok := zi.HandleForward(question, reqNet); ok {
 			res = msg
 			found = true
+			responder = "forward"
 		}
 	}
 	if zi.RecursionEnabled && !found {
 		if msg, ok := zi.HandleRecursiveResolve(question, reqNet); ok {
 			res = msg
 			found = true
+			responder = "recursive"
 		}
 	}
 
@@ -146,6 +154,7 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	}
 
 	zi.qLog.Info().Str("microseconds", strconv.FormatInt(time.Since(start).Microseconds(), 10)).Msgf("Query responded (%s)", question.Name)
+	zi.promMetrics.CountQuery(zi.Name, dns.Type(question.Qtype).String(), responder)
 }
 
 // ||=====================||
@@ -279,8 +288,9 @@ func (zi *ZoneInstance) HandleForward(q dns.Question, netType string) (*dns.Msg,
 	client.Net = netType
 	client.Timeout = 5 * time.Second
 
+	// The goal here is to cycle through all the available upstreams if necessary - and in the case that they are responding
+	// properly, round-robin to distribute load across given upstream IPs
 	upstreamCount := 0
-
 	for upstreamCount < zi.UpstreamRoundRobin.Count() {
 		upstream := net.JoinHostPort(*zi.UpstreamRoundRobin.Next(), "53")
 
