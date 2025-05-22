@@ -23,10 +23,6 @@ import (
 	"github.com/miekg/dns"
 )
 
-var (
-	err error
-)
-
 type Server struct {
 	config   *config.WrappedServerConfig
 	configMu sync.RWMutex
@@ -118,7 +114,8 @@ func (srv *Server) populateConfig() error {
 		} else {
 			// If the zone already exists in the map, we do not want to overwrite it as that would break the DNS query handler (since hot-reloading is supported)
 			util.Logger.Debug().Str("zone", name).Msg("Zone does not exist, creating")
-			zi, err = NewZoneInstance(name, *conf)
+			var err error
+			zi, err = NewZoneInstance(name, *conf, srv.promMetrics)
 			if err != nil {
 				return err
 			}
@@ -169,7 +166,7 @@ func (srv *Server) Run() {
 	}
 
 	if srv.config.DNSConfig.EnableTailscale {
-		err = srv.tailscaleClient.Start()
+		err := srv.tailscaleClient.Start()
 		if err != nil {
 			util.Logger.Fatal().Err(err).Msg("Failed to start tailscale")
 			return
