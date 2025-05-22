@@ -11,7 +11,7 @@ Tungsten aims to be a highly flexible and programmable DNS server. I am creating
 - [x] Autopopulate names from a Tailscale IPN/Tailnet
 - [x] Configuration hot-reloading
 - [ ] Forward DNS queries to different places depending on what zone answers for them
-- [ ] Fully recursive resolution (likely with libunbound)
+- [x] Fully recursive resolution with libunbound
 - [ ] SkyDNS-like serving from etcd
 
 ## Usage
