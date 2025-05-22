@@ -68,8 +68,12 @@ func (zi *ZoneInstance) Initialize(zone config.Zone) error {
 	if zi.RecursionEnabled {
 		zi.unboundTcp = unbound.New()
 		zi.unboundUdp = unbound.New()
-		zi.unboundTcp.SetOption("tcp-upstream:", "yes")
+		err := zi.unboundTcp.SetOption("tcp-upstream:", "yes")
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -97,7 +101,7 @@ func (zi *ZoneInstance) Populate() error {
 func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	start := time.Now()
 	question := req.Question[0]
-	zi.qLog = zi.baseLog.With().Str("qtype", qtypeToString(dns.Type(question.Qtype))).Str("localAddr", w.LocalAddr().Network()).Logger()
+	zi.qLog = zi.baseLog.With().Str("qtype", dns.Type(question.Qtype).String()).Str("localAddr", w.LocalAddr().Network()).Logger()
 	zi.qLog.Info().Msgf("Question received (%s)", question.Name)
 
 	var (
@@ -144,6 +148,11 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	zi.qLog.Info().Str("microseconds", strconv.FormatInt(time.Since(start).Microseconds(), 10)).Msgf("Query responded (%s)", question.Name)
 }
 
+// ||=====================||
+// || RESPONDER FUNCTIONS ||
+// ||=====================||
+
+// HandleRecords checks the static records config and answers accordingly
 func (zi *ZoneInstance) HandleRecords(q dns.Question) (*dns.Msg, bool) {
 	zi.qLog.Debug().Msgf("Handling query with Static Records (%s)", q.Name)
 	var (
@@ -173,7 +182,6 @@ func (zi *ZoneInstance) HandleRecords(q dns.Question) (*dns.Msg, bool) {
 			found = true
 			for _, rec := range recs {
 				answers = append(answers, util.CnameRecord(q.Name, rec.GetTarget(), rec.GetTtl()))
-
 			}
 		}
 	}
@@ -188,7 +196,13 @@ func (zi *ZoneInstance) HandleRecords(q dns.Question) (*dns.Msg, bool) {
 	return nil, false
 }
 
+// HandleTailscale checks machine names in Tailscale and responds with their IP addresses
 func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
+	// Early return in case this query isn't something this responder will handle
+	if q.Qtype != dns.TypeCNAME && q.Qtype != dns.TypeA && q.Qtype != dns.TypeAAAA {
+		return nil, false
+	}
+
 	zi.qLog.Debug().Msgf("Handling query with Tailscale (%s)", q.Name)
 	var (
 		msg     *dns.Msg
@@ -245,6 +259,7 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 	return nil, false
 }
 
+// HandleForward forwards queries to upstream DNS servers like 1.1.1.1, 9.9.9.9, etc
 func (zi *ZoneInstance) HandleForward(q dns.Question, netType string) (*dns.Msg, bool) {
 	zi.qLog.Debug().Msgf("Handling query with Forwarder (%s)", q.Name)
 	var (
@@ -294,12 +309,16 @@ func (zi *ZoneInstance) HandleForward(q dns.Question, netType string) (*dns.Msg,
 	return nil, false
 }
 
+// TODO: Figure out if there's a way to separate this function to allow compilation without recursive dns support, therefore not requiring CGO & libunbound
+
+// HandleRecursiveResolve uses libunbound to recursively resolve dns queries
 func (zi *ZoneInstance) HandleRecursiveResolve(q dns.Question, net string) (*dns.Msg, bool) {
 	zi.qLog.Debug().Msgf("Handling query with libunbound Recursor (%s)", q.Name)
 	var (
 		msg   *dns.Msg
 		found = false
 		res   *unbound.Result
+		err   error
 	)
 
 	err = nil
@@ -312,7 +331,7 @@ func (zi *ZoneInstance) HandleRecursiveResolve(q dns.Question, net string) (*dns
 	}
 
 	//rcode := dns.RcodeServerFailure
-	//if err == nil {
+	//if err == nil && res != nil {
 	//	rcode = res.AnswerPacket.Rcode
 	//}
 	//rc, ok := dns.RcodeToString[rcode]
