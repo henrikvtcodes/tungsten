@@ -5,6 +5,7 @@ import (
 	"github.com/henrikvtcodes/tungsten/config"
 	"github.com/henrikvtcodes/tungsten/config/records"
 	"github.com/henrikvtcodes/tungsten/util"
+	"github.com/henrikvtcodes/tungsten/util/roundrobin"
 	"github.com/henrikvtcodes/tungsten/util/tailscale"
 	"github.com/miekg/dns"
 	"github.com/miekg/unbound"
@@ -12,6 +13,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"tailscale.com/util/slicesx"
 	"time"
 )
 
@@ -20,9 +22,10 @@ type ZoneInstance struct {
 
 	StaticRecords *records.RecordsObject
 
-	ForwardConfig *config.ForwardConfig
-	NoForward     bool
-	dnsClient     *dns.Client
+	ForwardConfig      *config.ForwardConfig
+	NoForward          bool
+	dnsClient          *dns.Client
+	UpstreamRoundRobin *roundrobin.RoundRobin[string]
 
 	RecursionEnabled bool
 	unboundTcp       *unbound.Unbound
@@ -78,11 +81,14 @@ func (zi *ZoneInstance) Populate() error {
 		if err != nil {
 			return err
 		}
-		//servers := slicesx.Interleave(zi.ForwardConfig.Ipv6Addresses, zi.ForwardConfig.Ipv4Addresses)
-		//
-		//cConfig := dns.ClientConfig{
-		//	Servers: servers,
-		//}
+
+		// Evenly distribute query load across forwarder servers
+		var servers []*string
+		for _, s := range slicesx.Interleave(zi.ForwardConfig.Ipv6Addresses, zi.ForwardConfig.Ipv4Addresses) {
+			sCopy := s
+			servers = append(servers, &sCopy)
+		}
+		zi.UpstreamRoundRobin, _ = roundrobin.New(servers...)
 	}
 
 	return nil
@@ -109,14 +115,15 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 			found = true
 		}
 	}
+	reqNet := w.LocalAddr().Network()
 	if !zi.NoForward && zi.ForwardConfig != nil && !found {
-		if msg, ok := zi.HandleForward(question); ok {
+		if msg, ok := zi.HandleForward(question, reqNet); ok {
 			res = msg
 			found = true
 		}
 	}
 	if zi.RecursionEnabled && !found {
-		if msg, ok := zi.HandleRecursiveResolve(question, w.LocalAddr().Network()); ok {
+		if msg, ok := zi.HandleRecursiveResolve(question, reqNet); ok {
 			res = msg
 			found = true
 		}
@@ -124,6 +131,7 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 
 	if !found {
 		zi.qLog.Warn().Msgf("No response found (%s)", question.Name)
+		res.SetRcode(req, dns.RcodeServerFailure)
 	}
 
 	res.SetReply(req)
@@ -237,20 +245,50 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 	return nil, false
 }
 
-func (zi *ZoneInstance) HandleForward(q dns.Question) (*dns.Msg, bool) {
+func (zi *ZoneInstance) HandleForward(q dns.Question, netType string) (*dns.Msg, bool) {
 	zi.qLog.Debug().Msgf("Handling query with Forwarder (%s)", q.Name)
 	var (
-		msg     *dns.Msg
-		answers []dns.RR
-		found   = false
+		msg    *dns.Msg
+		client *dns.Client
+		err    error
+		rtt    time.Duration
 	)
 
-	if found {
-		zi.qLog.Info().Msgf("Handled query with Forwarder (%s)", q.Name)
-		msg = new(dns.Msg)
-		//msg.Authoritative, msg.RecursionAvailable = true, true
-		msg.Answer = answers
-		return msg, found
+	// Create a new DNS message to send to the upstream server.
+	fwReq := new(dns.Msg)
+	fwReq.SetQuestion(q.Name, q.Qtype)
+	fwReq.RecursionDesired = true
+
+	// Create a new DNS client.
+	client = new(dns.Client)
+	client.Net = netType
+	client.Timeout = 5 * time.Second
+
+	upstreamCount := 0
+
+	for upstreamCount < zi.UpstreamRoundRobin.Count() {
+		upstream := net.JoinHostPort(*zi.UpstreamRoundRobin.Next(), "53")
+
+		zi.qLog.Debug().Msgf("Attempting to forward query for %s to upstream %s", q.Name, upstream)
+		msg, rtt, err = client.Exchange(fwReq, upstream)
+
+		if err == nil {
+			if msg != nil {
+				// Ensure the response message is valid and has at least some answers
+				// or indicates no error.
+				if msg.Rcode == dns.RcodeServerFailure || msg.Rcode == dns.RcodeFormatError {
+					zi.qLog.Warn().Msgf("Upstream %s returned an error RCODE: %s for query %s", upstream, dns.RcodeToString[msg.Rcode], q.Name)
+					continue
+				} else {
+					zi.qLog.Info().Msgf("Successfully forwarded query for %s to %s (rtt %d micros)", q.Name, upstream, rtt.Microseconds())
+					return msg, true
+				}
+			}
+		} else {
+			// An error occurred during the exchange (e.g., timeout, network issue).
+			zi.qLog.Error().Err(err).Msgf("Failed to forward query for %s to upstream %s", q.Name, upstream)
+		}
+		upstreamCount++
 	}
 
 	return nil, false
