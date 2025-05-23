@@ -1,1 +1,3 @@
 *.pkl.go
+gomod2nix.toml
+vendor
