@@ -104,7 +104,7 @@ func (zi *ZoneInstance) Populate() error {
 func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	start := time.Now()
 	question := req.Question[0]
-	zi.qLog = zi.baseLog.With().Str("qtype", dns.Type(question.Qtype).String()).Str("localAddr", w.LocalAddr().Network()).Logger()
+	zi.qLog = zi.baseLog.With().Str("qtype", dns.Type(question.Qtype).String()).Logger()
 	zi.qLog.Info().Msgf("Question received (%s)", question.Name)
 
 	var (
@@ -153,7 +153,7 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		zi.qLog.Error().Err(err).Msgf("Failed to write response (%s)", question.Name)
 	}
 
-	zi.qLog.Info().Str("microseconds", strconv.FormatInt(time.Since(start).Microseconds(), 10)).Msgf("Query responded (%s)", question.Name)
+	zi.qLog.Info().Str("ms", strconv.FormatInt(time.Since(start).Milliseconds(), 10)).Msgf("Query responded (%s)", question.Name)
 	zi.promMetrics.CountQuery(zi.Name, dns.Type(question.Qtype).String(), responder)
 }
 
@@ -302,10 +302,10 @@ func (zi *ZoneInstance) HandleForward(q dns.Question, netType string) (*dns.Msg,
 				// Ensure the response message is valid and has at least some answers
 				// or indicates no error.
 				if msg.Rcode == dns.RcodeServerFailure || msg.Rcode == dns.RcodeFormatError {
-					zi.qLog.Warn().Msgf("Upstream %s returned an error RCODE: %s for query %s", upstream, dns.RcodeToString[msg.Rcode], q.Name)
+					zi.qLog.Warn().Msgf("Upstream %s returned an error %s for query %s", upstream, dns.RcodeToString[msg.Rcode], q.Name)
 					continue
 				} else {
-					zi.qLog.Info().Msgf("Successfully forwarded query for %s to %s (rtt %d micros)", q.Name, upstream, rtt.Microseconds())
+					zi.qLog.Info().Msgf("Forwarded query for %s to %s (rtt %d ms)", q.Name, upstream, rtt.Milliseconds())
 					return msg, true
 				}
 			}

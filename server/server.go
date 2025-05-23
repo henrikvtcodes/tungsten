@@ -250,31 +250,6 @@ func (srv *Server) servePlainDNS(ctx context.Context, wg *sync.WaitGroup, net st
 	util.Logger.Info().Str("net", net).Str("addr", addr).Msg("Stopped DNS server")
 }
 
-// ServeDNS implements the dns.Handler interface.
-func (srv *Server) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	for _, q := range r.Question {
-		util.Logger.Info().Str("question", q.Name).Str("qtype", qtypeToString(dns.Type(q.Qtype))).Msg("Received question")
-	}
-}
-
-func qtypeToString(qtype dns.Type) string {
-	switch qtype {
-	case dns.Type(dns.TypeA):
-		return "A"
-	case dns.Type(dns.TypeAAAA):
-		return "AAAA"
-	case dns.Type(dns.TypeCNAME):
-		return "CNAME"
-	case dns.Type(dns.TypePTR):
-		return "PTR"
-	case dns.Type(dns.TypeMX):
-		return "MX"
-	case dns.Type(dns.TypeTXT):
-		return "TXT"
-	}
-	return ""
-}
-
 // ||===========================||
 // || HTTP Control Socket Stuff ||
 // ||===========================||
