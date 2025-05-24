@@ -127,7 +127,7 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	}
 	reqNet := w.LocalAddr().Network()
 	if !zi.NoForward && zi.ForwardConfig != nil && !found {
-		if msg, ok := zi.HandleForward(question, reqNet); ok {
+		if msg, ok := zi.HandleForward(req, reqNet); ok {
 			res = msg
 			found = true
 			responder = "forward"
@@ -260,7 +260,7 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 	if found {
 		zi.qLog.Info().Msgf("Handled query with Tailscale (%s)", q.Name)
 		msg = new(dns.Msg)
-		//msg.Authoritative, msg.RecursionAvailable = true, true
+		msg.Authoritative = true
 		msg.Answer = answers
 		return msg, found
 	}
@@ -269,8 +269,8 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 }
 
 // HandleForward forwards queries to upstream DNS servers like 1.1.1.1, 9.9.9.9, etc
-func (zi *ZoneInstance) HandleForward(q dns.Question, netType string) (*dns.Msg, bool) {
-	zi.qLog.Debug().Msgf("Handling query with Forwarder (%s)", q.Name)
+func (zi *ZoneInstance) HandleForward(q *dns.Msg, netType string) (*dns.Msg, bool) {
+	zi.qLog.Debug().Msgf("Handling query with Forwarder (%s)", q.Question[0].Name)
 	var (
 		msg    *dns.Msg
 		client *dns.Client
@@ -280,8 +280,8 @@ func (zi *ZoneInstance) HandleForward(q dns.Question, netType string) (*dns.Msg,
 
 	// Create a new DNS message to send to the upstream server.
 	fwReq := new(dns.Msg)
-	fwReq.SetQuestion(q.Name, q.Qtype)
-	fwReq.RecursionDesired = true
+	fwReq.SetQuestion(q.Question[0].Name, q.Question[0].Qtype)
+	fwReq.RecursionDesired = q.RecursionDesired
 
 	// Create a new DNS client.
 	client = new(dns.Client)
@@ -294,7 +294,7 @@ func (zi *ZoneInstance) HandleForward(q dns.Question, netType string) (*dns.Msg,
 	for upstreamCount < zi.UpstreamRoundRobin.Count() {
 		upstream := net.JoinHostPort(*zi.UpstreamRoundRobin.Next(), "53")
 
-		zi.qLog.Debug().Msgf("Attempting to forward query for %s to upstream %s", q.Name, upstream)
+		zi.qLog.Debug().Msgf("Attempting to forward query for %s to upstream %s", q.Question[0].Name, upstream)
 		msg, rtt, err = client.Exchange(fwReq, upstream)
 
 		if err == nil {
@@ -302,16 +302,16 @@ func (zi *ZoneInstance) HandleForward(q dns.Question, netType string) (*dns.Msg,
 				// Ensure the response message is valid and has at least some answers
 				// or indicates no error.
 				if msg.Rcode == dns.RcodeServerFailure || msg.Rcode == dns.RcodeFormatError {
-					zi.qLog.Warn().Msgf("Upstream %s returned an error %s for query %s", upstream, dns.RcodeToString[msg.Rcode], q.Name)
+					zi.qLog.Warn().Msgf("Upstream %s returned an error %s for query %s", upstream, dns.RcodeToString[msg.Rcode], q.Question[0].Name)
 					continue
 				} else {
-					zi.qLog.Info().Msgf("Forwarded query for %s to %s (rtt %d ms)", q.Name, upstream, rtt.Milliseconds())
+					zi.qLog.Info().Msgf("Forwarded query for %s to %s (rtt %d ms)", q.Question[0].Name, upstream, rtt.Milliseconds())
 					return msg, true
 				}
 			}
 		} else {
 			// An error occurred during the exchange (e.g., timeout, network issue).
-			zi.qLog.Error().Err(err).Msgf("Failed to forward query for %s to upstream %s", q.Name, upstream)
+			zi.qLog.Error().Err(err).Msgf("Failed to forward query for %s to upstream %s", q.Question[0].Name, upstream)
 		}
 		upstreamCount++
 	}
