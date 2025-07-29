@@ -8,6 +8,28 @@ import (
 	"github.com/miekg/unbound"
 )
 
+// RecursorWrapper abstracts the utilization of the unbound library to this file exclusively.
+type RecursorWrapper struct {
+	Tcp       *unbound.Unbound
+	Udp       *unbound.Unbound
+}
+
+func (rw *RecursorWrapper) Destroy() {
+	rw.Tcp.Destroy()
+	rw.Udp.Destroy()
+}
+
+func (zi *ZoneInstance) setupRecursion() error {
+	zi.recursor = &RecursorWrapper{}
+	zi.recursor.Tcp = unbound.New()
+	zi.recursor.Udp = unbound.New()
+	err := zi.recursor.Tcp.SetOption("tcp-upstream:", "yes")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // HandleRecursiveResolve uses libunbound to recursively resolve dns queries
 func (zi *ZoneInstance) HandleRecursiveResolve(q dns.Question, net string) (*dns.Msg, bool) {
 	zi.qLog.Debug().Msgf("Handling query with libunbound Recursor (%s)", q.Name)
@@ -22,9 +44,9 @@ func (zi *ZoneInstance) HandleRecursiveResolve(q dns.Question, net string) (*dns
 
 	switch net {
 	case "tcp":
-		res, err = zi.unboundTcp.Resolve(q.Name, q.Qtype, q.Qclass)
+		res, err = zi.recursor.Tcp.Resolve(q.Name, q.Qtype, q.Qclass)
 	case "udp":
-		res, err = zi.unboundUdp.Resolve(q.Name, q.Qtype, q.Qclass)
+		res, err = zi.recursor.Udp.Resolve(q.Name, q.Qtype, q.Qclass)
 	}
 
 	//rcode := dns.RcodeServerFailure

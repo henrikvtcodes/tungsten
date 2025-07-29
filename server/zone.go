@@ -13,7 +13,6 @@ import (
 	"github.com/henrikvtcodes/tungsten/util/roundrobin"
 	"github.com/henrikvtcodes/tungsten/util/tailscale"
 	"github.com/miekg/dns"
-	"github.com/miekg/unbound"
 	"github.com/rs/zerolog"
 	"tailscale.com/util/slicesx"
 )
@@ -29,8 +28,7 @@ type ZoneInstance struct {
 	UpstreamRoundRobin *roundrobin.RoundRobin[string]
 
 	RecursionEnabled bool
-	unboundTcp       *unbound.Unbound
-	unboundUdp       *unbound.Unbound
+	recursor *RecursorWrapper
 
 	Tailscale *config.TailscaleRecords
 	TSClient  *tailscale.Tailscale
@@ -70,9 +68,7 @@ func (zi *ZoneInstance) Initialize(zone config.Zone) error {
 	}
 
 	if zi.RecursionEnabled {
-		zi.unboundTcp = unbound.New()
-		zi.unboundUdp = unbound.New()
-		err := zi.unboundTcp.SetOption("tcp-upstream:", "yes")
+		err := zi.setupRecursion()
 		if err != nil {
 			return err
 		}
@@ -320,9 +316,7 @@ func (zi *ZoneInstance) HandleForward(q *dns.Msg, netType string) (*dns.Msg, boo
 	return nil, false
 }
 
-
 func (zi *ZoneInstance) Stop() error {
-	zi.unboundTcp.Destroy()
-	zi.unboundUdp.Destroy()
+	zi.recursor.Destroy()
 	return nil
 }
