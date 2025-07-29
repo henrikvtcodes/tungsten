@@ -16,5 +16,5 @@ func (zi *ZoneInstance) HandleRecursiveResolve(q dns.Question, net string) (*dns
 }
 
 func IsRecursiveResolutionEnabled() bool {
-    return false
+	return false
 }

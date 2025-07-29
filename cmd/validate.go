@@ -24,7 +24,7 @@ func newValidateCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			// Make sure important messages get printed out
 			util.Logger = util.Logger.Level(zerolog.InfoLevel)
-			
+
 			util.Logger.Debug().Msg("Checking config...")
 			absConfigPath, err := filepath.Abs(configPath)
 			if err != nil {
