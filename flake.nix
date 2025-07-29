@@ -24,15 +24,21 @@
         pkgs,
         system,
         ...
-      }: rec  {
+      }: rec {
         packages = rec {
-          default = pkgs.callPackage ./tungsten.nix {
+          default = tungsten;
+          tungsten = (pkgs.callPackage ./tungsten.nix {
             inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
-            inherit pkl-go;
-          };
-          tungsten = default;
-          pkl-go = pkgs.callPackage ./pkl-gen-go.nix {
-          };
+          });
+
+
+          tungsten-full = (pkgs.callPackage ./tungsten-full.nix {
+            inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
+          });
+
+          pkl-go =
+            pkgs.callPackage ./pkl-gen-go.nix {
+            };
         };
 
         devShells.default = pkgs.mkShell {
@@ -43,9 +49,9 @@
             go-tools
             gomod2nix.packages.${system}.default
             unbound.lib
-	        unbound
-             packages.pkl-go
-             pkl
+            unbound
+            packages.pkl-go
+            pkl
           ];
 
           TUNGSTEN_DEV_MODE = 1;

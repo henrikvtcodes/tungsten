@@ -3,20 +3,13 @@
   pkgs,
   ...
 }:
-buildGoApplication rec {
+buildGoApplication {
   pname = "tungsten";
   version = "0.0.0";
 
   src = ./.;
   pwd = ./.;
   modules = ./gomod2nix.toml;
-
-  CGO_ENABLED = 0;
-
-  modReplace = {
-              "github.com/miekg/unbound" = "${src}/stubs/unbound";
-            };
-
 
   # preBuild = ''
   #   export XDG_CACHE_HOME="$TMPDIR/xdg-cache"
@@ -33,4 +26,14 @@ buildGoApplication rec {
   #   export PKL_EXEC=${pkgs.pkl}/bin/pkl
   #   ${pkl-go}/bin/pkl-gen-go --cache-dir $PKL_HOME  --generator-settings generator-settings.pkl --base-path github.com/henrikvtcodes/tungsten config/Server.pkl
   # '';
+
+  tags =  ["unbound"];
+
+  buildInputs = (with pkgs; [
+    unbound
+  ]);
+
+  nativeBuildInputs = (with pkgs; [
+    unbound
+  ]);
 }
