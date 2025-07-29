@@ -2,9 +2,10 @@ package config
 
 import (
 	"fmt"
-	"github.com/carlmjohnson/truthy"
 	"os"
 	"strings"
+
+	"github.com/carlmjohnson/truthy"
 )
 
 var (

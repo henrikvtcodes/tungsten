@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/henrikvtcodes/tungsten/config"
-	"github.com/henrikvtcodes/tungsten/util/tailscale"
-	"github.com/prometheus/client_golang/prometheus"
 	"io/fs"
 	"net"
 	"net/http"
@@ -17,8 +14,12 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"tailscale.com/util/slicesx"
 	"time"
+
+	"github.com/henrikvtcodes/tungsten/config"
+	"github.com/henrikvtcodes/tungsten/util/tailscale"
+	"github.com/prometheus/client_golang/prometheus"
+	"tailscale.com/util/slicesx"
 
 	"github.com/henrikvtcodes/tungsten/util"
 	"github.com/miekg/dns"
@@ -127,6 +128,10 @@ func (srv *Server) populateConfig() error {
 			if zi.Tailscale != nil {
 				util.Logger.Debug().Str("zone", name).Msg("Enabling Tailscale")
 				zi.TSClient = srv.tailscaleClient
+			}
+			// If the user wants to enable recursive resolution, check that it's compiled into the running binary
+			if zi.RecursionEnabled && !IsRecursiveResolutionEnabled() {
+				return util.RecursionStubError
 			}
 			activeZones[name] = zi
 			srv.dnsServeMux.Handle(zi.Name, zi)
