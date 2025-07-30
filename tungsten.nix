@@ -13,11 +13,6 @@ buildGoApplication rec {
 
   CGO_ENABLED = 0;
 
-  modReplace = {
-              "github.com/miekg/unbound" = "${src}/stubs/unbound";
-            };
-
-
   # preBuild = ''
   #   export XDG_CACHE_HOME="$TMPDIR/xdg-cache"
   #   export XDG_DATA_HOME="$TMPDIR/xdg-data"
