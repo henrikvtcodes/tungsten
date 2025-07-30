@@ -27,14 +27,13 @@
       }: rec {
         packages = rec {
           default = tungsten;
-          tungsten = (pkgs.callPackage ./tungsten.nix {
+          tungsten = pkgs.callPackage ./tungsten.nix {
             inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
-          });
+          };
 
-
-          tungsten-full = (pkgs.callPackage ./tungsten-full.nix {
+          tungsten-full = pkgs.callPackage ./tungsten-full.nix {
             inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
-          });
+          };
 
           pkl-go =
             pkgs.callPackage ./pkl-gen-go.nix {

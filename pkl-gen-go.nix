@@ -9,7 +9,7 @@ buildGoModule rec {
   pname = "pkl-go";
   version = "0.10.0";
 
-  subPackages = [ "cmd/pkl-gen-go" ];
+  subPackages = ["cmd/pkl-gen-go"];
 
   src = fetchFromGitHub {
     owner = "apple";
@@ -20,6 +20,6 @@ buildGoModule rec {
   vendorHash = "sha256-YySJhQCboZJXwSJ9fTBkiIouErHMlwYcT8qHdtRyMQI=";
 
   preBuild = with pkgs; ''
-      ${gnused}/bin/sed -i "s|var Version = \"development\"|var Version = \"${version}\"|" cmd/pkl-gen-go/pkl-gen-go.go
+    ${gnused}/bin/sed -i "s|var Version = \"development\"|var Version = \"${version}\"|" cmd/pkl-gen-go/pkl-gen-go.go
   '';
 }

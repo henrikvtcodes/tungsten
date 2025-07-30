@@ -27,13 +27,13 @@ buildGoApplication {
   #   ${pkl-go}/bin/pkl-gen-go --cache-dir $PKL_HOME  --generator-settings generator-settings.pkl --base-path github.com/henrikvtcodes/tungsten config/Server.pkl
   # '';
 
-  tags =  ["unbound"];
+  tags = ["unbound"];
 
-  buildInputs = (with pkgs; [
+  buildInputs = with pkgs; [
     unbound
-  ]);
+  ];
 
-  nativeBuildInputs = (with pkgs; [
+  nativeBuildInputs = with pkgs; [
     unbound
-  ]);
+  ];
 }
