@@ -1,5 +1,71 @@
-amends "./config/server-config.pkl"
+amends "https://raw.githubusercontent.com/henrikvtcodes/tungsten/refs/heads/main/config/Server.pkl"
 
-name = "Henrik"
+local uni: Zone = new Zone {
+  records {
 
-port = 21774
+  }
+}
+
+zones {
+  ["example.com"] {
+    recursionEnabled = true
+    tailscale {} // This will serve tailscale machine names
+    records {
+      A {
+        ["test1"] {
+          new {
+            address = "192.168.201.10"
+          }
+          new {
+            ttl = 1
+            address = "10.0.16.59"
+          }
+        }
+      }
+      AAAA {
+        ["test2"] {
+          new {
+            ttl = 3600
+            address = "fd00:215:207::1"
+          }
+          new {
+            ttl = 3600
+            address = "fd00:215:207::2"
+          }
+        }
+      }
+    }
+  }
+  ["unicycl.ing"] {
+    // Different forward configuration for this zone than default
+    forward {
+      ipv4Addresses {
+        "1.1.1.1"
+        "1.0.0.1"
+      }
+      ipv6Addresses {
+        "2606:4700:4700::1111"
+        "2606:4700:4700::1001"
+      }
+    }
+  }
+
+  ["."] {
+    // Different forward configuration for this zone than default
+    recursionEnabled = true
+  }
+}
+
+defaultForwardConfig {
+  ipv4Addresses {
+    "8.8.8.8"
+    "8.8.4.4"
+  }
+  ipv6Addresses {
+    "2001:4860:4860::8888"
+    "2001:4860:4860::8844"
+  }
+}
+
+defaultPort = 1053
+enableTailscale = true

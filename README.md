@@ -3,7 +3,7 @@
 Tungsten aims to be a highly flexible and programmable DNS server. I am creating this to act as my internal DNS solution, resolving private or internal names. I am not sure if this will ever be suitable for public, high volume DNS resolution.
 
 > [!WARNING]  
-> **Use at your own risk**
+> **Use at your own risk:**  
 > I cannot guarantee that this DNS server is fully stable. I use this in my homelab, where some downtime is okay.
 
 ## Features/Goals
@@ -23,7 +23,10 @@ _Please note: this is not an exhaustive list, and will be updated in the future 
 
 ### Configuration
 
-**Enviroment Variables**
+Configuration is done via a combination of environment variables (for settings that are not likely to change) and the [Pkl](https://pkl-lang.org) configuration file.
+
+#### Enviroment Variables
+
 Environment variables are used for a few select things; mostly related to logging at the moment.
 
 | Variable              | Default    | Description                                                                                                                                                                                   |
@@ -32,7 +35,14 @@ Environment variables are used for a few select things; mostly related to loggin
 | `TUNGSTEN_LOG_LEVEL`  | `2` (warn) | This value gets passed into [`zerolog.ParseLevel`](https://pkg.go.dev/github.com/rs/zerolog@v1.34.0#ParseLevel). See zerolog level docs [here](https://github.com/rs/zerolog#leveled-logging) |
 | `TUNGSTEN_DEV_MODE`   | `false`    | Any truthy or falsy value (ie `0`, `1`, `true`, `false`, etc)                                                                                                                                 |
 
-### Enabling Recursion
+#### Main Config
+
+You should check out the `example.pkl` file for a general idea of how it's structured, but here's the general gist:
+
+- `amends` tells Pkl what file to fetch for the type definitions (the url must return the text content of the template file)
+- It is highly recommended to have the Pkl language extension installed, as that will hint the type definitions and make it way easier to write your own config
+
+### Enabling Recursive Resolution
 
 By default, binaries are not built with support for recursive resolution.
 
