@@ -3,7 +3,7 @@
 Tungsten aims to be a highly flexible and programmable DNS server. I am creating this to act as my internal DNS solution, resolving private or internal names. I am not sure if this will ever be suitable for public, high volume DNS resolution.
 
 > [!WARNING]  
-> **Use at your own risk:**  
+> **Use at your own risk**  
 > I cannot guarantee that this DNS server is fully stable. I use this in my homelab, where some downtime is okay.
 
 ## Features/Goals
