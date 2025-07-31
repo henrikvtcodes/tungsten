@@ -23,12 +23,14 @@
       perSystem = {
         pkgs,
         system,
+        self',
         ...
       }: rec {
         packages = rec {
           default = tungsten;
           tungsten = pkgs.callPackage ./tungsten.nix {
             inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
+             self = self';
           };
 
           tungsten-full = pkgs.callPackage ./tungsten-full.nix {

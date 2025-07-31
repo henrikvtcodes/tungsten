@@ -3,7 +3,7 @@
   pkgs,
   ...
 }:
-buildGoApplication {
+buildGoApplication rec {
   pname = "tungsten";
   version = "0.0.0";
 
@@ -36,4 +36,9 @@ buildGoApplication {
   nativeBuildInputs = with pkgs; [
     unbound
   ];
+
+  preBuild = ''
+  ${pkgs.gnused}/bin/sed -i "s|@version-dev@|${version}|g" util/version.go
+  ${pkgs.gnused}/bin/sed -i "s|@sha-dev@|$(${pkgs.git}/bin/git rev-parse --short HEAD)|g" util/version.go
+  '';
 }

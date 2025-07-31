@@ -1,6 +1,7 @@
 {
   buildGoApplication,
   pkgs,
+  self,
   ...
 }:
 buildGoApplication rec {
@@ -28,4 +29,9 @@ buildGoApplication rec {
   #   export PKL_EXEC=${pkgs.pkl}/bin/pkl
   #   ${pkl-go}/bin/pkl-gen-go --cache-dir $PKL_HOME  --generator-settings generator-settings.pkl --base-path github.com/henrikvtcodes/tungsten config/Server.pkl
   # '';
+
+  preBuild = ''
+  ${pkgs.gnused}/bin/sed -i "s|@version-dev@|${version}|g" util/version.go
+  ${pkgs.gnused}/bin/sed -i "s|@sha-dev@|$(echo ${self.rev} || cut -c1-7)|g" util/version.go
+  '';
 }

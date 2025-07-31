@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/henrikvtcodes/tungsten/server"
+	"github.com/henrikvtcodes/tungsten/util"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +16,12 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number of Tungsten",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Tungsten DNS Server ALPHA")
+
+		rrMessage := "not supported"
+
+		if server.IsRecursiveResolutionEnabled() {
+			rrMessage = "supported"
+		}
+		fmt.Printf("Tungsten DNS Server v%v (%v, recursive resolution %v)\n", util.Version, util.GitCommitSHA, rrMessage)
 	},
 }
