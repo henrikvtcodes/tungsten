@@ -96,7 +96,7 @@ func (srv *Server) populateConfig() error {
 		if !strings.HasSuffix(name, ".") {
 			return fmt.Errorf("zone name must end with a period character (%s)", name)
 		}
-		if strings.HasPrefix(name, ".") {
+		if strings.HasPrefix(name, ".") && len(name) > 1 {
 			return fmt.Errorf("zone name must not start with a period character (%s)", name)
 		}
 
