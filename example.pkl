@@ -7,9 +7,9 @@ local uni: Zone = new Zone {
 }
 
 zones {
-  ["example.com"] {
+  ["example.com."] {
     recursionEnabled = true
-    tailscale {} // This will serve tailscale machine names
+    noForward = true
     records {
       A {
         ["test1"] {
@@ -36,7 +36,9 @@ zones {
       }
     }
   }
-  ["unicycl.ing"] {
+  ["unicycl.ing."] {
+    tailscale {} // This will serve tailscale machine names
+
     // Different forward configuration for this zone than default
     forward {
       ipv4Addresses {
@@ -46,6 +48,34 @@ zones {
       ipv6Addresses {
         "2606:4700:4700::1111"
         "2606:4700:4700::1001"
+      }
+    }
+  }
+
+  ["lab."] {
+    records {
+      A {
+        ["prom"] {
+          new {
+            address = "192.168.201.10"
+          }
+          new {
+            ttl = 1
+            address = "10.0.16.59"
+          }
+        }
+      }
+      AAAA {
+        ["prom"] {
+          new {
+            ttl = 3600
+            address = "fd00:215:207::1"
+          }
+          new {
+            ttl = 3600
+            address = "fd00:215:207::2"
+          }
+        }
       }
     }
   }
