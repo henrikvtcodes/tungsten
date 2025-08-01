@@ -42,6 +42,33 @@ You should check out the `example.pkl` file for a general idea of how it's struc
 - `amends` tells Pkl what file to fetch for the type definitions (the url must return the text content of the template file)
 - It is highly recommended to have the Pkl language extension installed, as that will hint the type definitions and make it way easier to write your own config
 
+### Running and reloading
+
+Tungsten is set up with a CLI interface as shown:
+
+```
+❯ tungsten --help
+A highly programmable DNS server, written in Go and configured with Pkl.
+
+Usage:
+  tungsten [command]
+
+Available Commands:
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  reload      Reload the configuration without restarting the server
+  serve       Run up the Tungsten DNS server
+  validate    Check if the config is valid
+  version     Print the version number of Tungsten
+
+Flags:
+  -c, --config string   Path to the configuration file (default "./example.pkl")
+  -h, --help            help for tungsten
+  -s, --socket string   Path to the socket for daemon communication (default "/run/tungsten/tungsten.sock")
+
+Use "tungsten [command] --help" for more information about a command.
+```
+
 ### Enabling Recursive Resolution
 
 By default, binaries are not built with support for recursive resolution.
