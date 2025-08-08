@@ -31,14 +31,16 @@ buildGoApplication rec {
 
   buildInputs = with pkgs; [
     unbound
+    pkl
   ];
 
   nativeBuildInputs = with pkgs; [
     unbound
+    pkl
   ];
 
-	#preBuild = ''
-	#${pkgs.gnused}/bin/sed -i "s|@version-dev@|${version}|g" util/version.go
-	#${pkgs.gnused}/bin/sed -i "s|@sha-dev@|$(${pkgs.git}/bin/git rev-parse --short HEAD)|g" util/version.go
-	#'';
+  #preBuild = ''
+  #${pkgs.gnused}/bin/sed -i "s|@version-dev@|${version}|g" util/version.go
+  #${pkgs.gnused}/bin/sed -i "s|@sha-dev@|$(${pkgs.git}/bin/git rev-parse --short HEAD)|g" util/version.go
+  #'';
 }
