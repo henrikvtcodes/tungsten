@@ -9,14 +9,16 @@ type ServerConfigFile struct {
 }
 
 type ZoneConfig struct {
-	Name             string         `yaml:"name" json:"name" toml:"name"`
-	RecursionEnabled bool           `default:"false" yaml:"recursionEnabled" json:"recursionEnabled" toml:"recursionEnabled"`
-	ForwardEnabled   bool           `default:"true" yaml:"forwardEnabled" json:"forwardEnabled" toml:"forwardEnabled"`
-	ForwardConfig    *ForwardConfig `yaml:"forwardConfig" json:"forwardConfig" toml:"forwardConfig"`
+	Name             string               `yaml:"name" json:"name" toml:"name"`
+	RecursionEnabled bool                 `default:"false" yaml:"recursionEnabled" json:"recursionEnabled" toml:"recursionEnabled"`
+	ForwardEnabled   bool                 `default:"true" yaml:"forwardEnabled" json:"forwardEnabled" toml:"forwardEnabled"`
+	ForwardConfig    *ForwardConfig       `yaml:"forwardConfig" json:"forwardConfig" toml:"forwardConfig"`
+	Records          *RecordsCollection   `yaml:"records" json:"records" toml:"records"`
+	Tailscale        *TailscaleZoneConfig `yaml:"tailscale" json:"tailscale" toml:"tailscale"`
 }
 
 type ForwardConfig struct {
-	Addresses []string `validate:"required,ip_addr" yaml:"addresses" json:"addresses" toml:"addresses"`
+	Addresses []*string `validate:"min=1,ip_addr" yaml:"addresses" json:"addresses" toml:"addresses"`
 }
 
 type TailscaleZoneConfig struct {
