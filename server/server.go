@@ -55,13 +55,13 @@ func NewServer(conf *config.WrappedServerConfig) *Server {
 	}
 	err := srv.populateConfig()
 	if err != nil {
-		util.Logger.Fatal().Err(err).Msg("Failed to populate config")
+		util.Logger.Fatal().Err(err).Msg("Failed to populate configOld")
 	}
 
 	return srv
 }
 
-// NewMockServer is used purely for config validation, and as such it does not return the server object
+// NewMockServer is used purely for configOld validation, and as such it does not return the server object
 func NewMockServer(conf *config.WrappedServerConfig) error {
 	srv := &Server{
 		config:      conf,
@@ -86,54 +86,54 @@ func (srv *Server) populateConfig() error {
 
 	activeZones := make(map[string]*ZoneInstance)
 
-	for name, conf := range srv.config.DNSConfig.Zones {
-		// If the zone does not have a forward config and is set up to forward queries, use the default forward config
-		if !conf.NoForward && conf.Forward == nil {
-			conf.Forward = srv.config.DNSConfig.DefaultForwardConfig
+	for _, conf := range srv.config.DNSConfig.Zones {
+		// If the zone does not have a forward configOld and is set up to forward queries, use the default forward configOld
+		if conf.ForwardEnabled && conf.ForwardConfig == nil {
+			conf.ForwardConfig = srv.config.DNSConfig.DefaultForwardConfig
 		}
 
 		// Some general validation logic
-		if !strings.HasSuffix(name, ".") {
-			return fmt.Errorf("zone name must end with a period character (%s)", name)
+		if !strings.HasSuffix(conf.Name, ".") {
+			return fmt.Errorf("zone name must end with a period character (%s)", conf.Name)
 		}
-		if strings.HasPrefix(name, ".") && len(name) > 1 {
-			return fmt.Errorf("zone name must not start with a period character (%s)", name)
+		if strings.HasPrefix(conf.Name, ".") && len(conf.Name) > 1 {
+			return fmt.Errorf("zone name must not start with a period character (%s)", conf.Name)
 		}
 
 		// Determine whether we are hot-reloading an existing zone or not
-		util.Logger.Debug().Str("zone", name).Msg("Loading config")
-		if zi, ok := srv.zones[name]; ok {
+		util.Logger.Debug().Str("zone", conf.Name).Msg("Loading config")
+		if zi, ok := srv.zones[conf.Name]; ok {
 			// Reinitialize existing zone
-			util.Logger.Debug().Str("zone", name).Msg("Found zone, initializing with new config")
+			util.Logger.Debug().Str("zone", conf.Name).Msg("Found zone, initializing with new config")
 			err := zi.Initialize(*conf)
 			if err != nil {
 				return err
 			}
 			if zi.Tailscale != nil && zi.TSClient == nil {
-				util.Logger.Debug().Str("zone", name).Msg("Enabling Tailscale")
-				srv.zones[name].TSClient = srv.tailscaleClient
+				util.Logger.Debug().Str("zone", conf.Name).Msg("Enabling Tailscale")
+				srv.zones[conf.Name].TSClient = srv.tailscaleClient
 			} else if zi.Tailscale == nil && zi.TSClient != nil {
-				util.Logger.Debug().Str("zone", name).Msg("Disabling Tailscale")
-				srv.zones[name].TSClient = nil
+				util.Logger.Debug().Str("zone", conf.Name).Msg("Disabling Tailscale")
+				srv.zones[conf.Name].TSClient = nil
 			}
-			activeZones[name] = zi
+			activeZones[conf.Name] = zi
 		} else {
 			// If the zone already exists in the map, we do not want to overwrite it as that would break the DNS query handler (since hot-reloading is supported)
-			util.Logger.Debug().Str("zone", name).Msg("Zone does not exist, creating")
+			util.Logger.Debug().Str("zone", conf.Name).Msg("Zone does not exist, creating")
 			var err error
-			zi, err = NewZoneInstance(name, *conf, srv.promMetrics)
+			zi, err = NewZoneInstance(conf.Name, *conf, srv.promMetrics)
 			if err != nil {
 				return err
 			}
 			if zi.Tailscale != nil {
-				util.Logger.Debug().Str("zone", name).Msg("Enabling Tailscale")
+				util.Logger.Debug().Str("zone", conf.Name).Msg("Enabling Tailscale")
 				zi.TSClient = srv.tailscaleClient
 			}
 			// If the user wants to enable recursive resolution, check that it's compiled into the running binary
 			if zi.RecursionEnabled && !IsRecursiveResolutionEnabled() {
 				return util.RecursionStubError
 			}
-			activeZones[name] = zi
+			activeZones[conf.Name] = zi
 			srv.dnsServeMux.Handle(zi.Name, zi)
 		}
 	}
@@ -222,7 +222,7 @@ func (srv *Server) Run() {
 // ||=========================||
 
 func (srv *Server) servePlainDNS(ctx context.Context, wg *sync.WaitGroup, net string) {
-	addr := fmt.Sprintf(":%d", srv.config.DNSConfig.DefaultPort)
+	addr := fmt.Sprintf(":%d", srv.config.DNSConfig.Port)
 	ns := &dns.Server{
 		Addr:          addr,
 		Net:           net,
@@ -277,9 +277,9 @@ func (srv *Server) startHTTPControlSocket() {
 	// |-----------------------------|
 	// | Create Unix socket listener |
 	// |-----------------------------|
-	absSocketPath, err := filepath.Abs(srv.config.SocketPath)
-	if err != nil {
-		util.Logger.Fatal().Err(err).Msg("Could not form absolute socket path")
+	absSocketPath, fsErr := filepath.Abs(srv.config.SocketPath)
+	if fsErr != nil {
+		util.Logger.Fatal().Err(fsErr).Msg("Could not form absolute socket path")
 	}
 	// If the directory containing the socket file does not exist, create it
 	if _, err := os.Stat(filepath.Dir(absSocketPath)); err != nil {
@@ -291,9 +291,9 @@ func (srv *Server) startHTTPControlSocket() {
 			util.Logger.Fatal().Err(err).Msg("Could not stat socket path")
 		}
 	}
-	unixListener, err := net.Listen("unix", absSocketPath)
-	if err != nil {
-		util.Logger.Fatal().Err(err).Msgf("Error creating unix control socket at %s. Try manually deleting the socket file", absSocketPath)
+	unixListener, lErr := net.Listen("unix", absSocketPath)
+	if lErr != nil {
+		util.Logger.Fatal().Err(lErr).Msgf("Error creating unix control socket at %s. Try manually deleting the socket file", absSocketPath)
 	}
 	srv.config.SocketPath = absSocketPath
 
@@ -302,8 +302,7 @@ func (srv *Server) startHTTPControlSocket() {
 	// |----------------------|
 	serveMux.HandleFunc("/reload", func(w http.ResponseWriter, r *http.Request) {
 		util.Logger.Info().Msg("Reloading configuration")
-		err := srv.reloadConfig()
-		if err != nil {
+		if err := srv.reloadConfig(); err != nil {
 			_, wErr := w.Write([]byte(err.Error()))
 			if wErr != nil {
 				return
@@ -319,9 +318,9 @@ func (srv *Server) startHTTPControlSocket() {
 	// | Run HTTP server |
 	// |-----------------|
 	go func() {
-		err = srv.httpControlServer.Serve(unixListener)
-		if err != nil {
-			util.Logger.Fatal().Err(err).Msgf("Error starting http server on socket")
+		fsErr = srv.httpControlServer.Serve(unixListener)
+		if fsErr != nil {
+			util.Logger.Fatal().Err(fsErr).Msgf("Error starting http server on socket")
 		}
 	}()
 	srv.httpControlServerRunning = true
@@ -337,8 +336,8 @@ func (srv *Server) stopHttpControlSocket() {
 }
 
 func (srv *Server) reloadConfig() error {
-	util.Logger.Info().Msgf("Reloading config from %s", srv.config.ConfigPath)
-	conf, err := config.LoadFromPath(context.Background(), srv.config.ConfigPath)
+	util.Logger.Info().Msgf("Reloading configOld from %s", srv.config.ConfigPath)
+	conf, err := config.LoadFromPath(srv.config.ConfigPath)
 	if err != nil {
 		util.Logger.Warn().Msg("Failed to read or validate config file")
 		return errors.New("failed to reload or validate config. try running `tungsten validate` for more information")

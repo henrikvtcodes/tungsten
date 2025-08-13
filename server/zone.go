@@ -2,35 +2,33 @@ package server
 
 import (
 	"fmt"
+	"github.com/henrikvtcodes/tungsten/config/schema"
 	"net"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/henrikvtcodes/tungsten/config"
-	"github.com/henrikvtcodes/tungsten/config/records"
 	"github.com/henrikvtcodes/tungsten/util"
 	"github.com/henrikvtcodes/tungsten/util/roundrobin"
 	"github.com/henrikvtcodes/tungsten/util/tailscale"
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
-	"tailscale.com/util/slicesx"
 )
 
 type ZoneInstance struct {
 	Name string
 
-	StaticRecords *records.RecordsObject
+	StaticRecords *schema.RecordsCollection
 
-	ForwardConfig      *config.ForwardConfig
-	NoForward          bool
+	ForwardConfig      *schema.ForwardConfig
+	Forward            bool
 	dnsClient          *dns.Client
 	UpstreamRoundRobin *roundrobin.RoundRobin[string]
 
 	RecursionEnabled bool
-	recursor *RecursorWrapper
+	recursor         *RecursorWrapper
 
-	Tailscale *config.TailscaleRecords
+	Tailscale *schema.TailscaleZoneConfig
 	TSClient  *tailscale.Tailscale
 
 	baseLog     zerolog.Logger
@@ -38,7 +36,7 @@ type ZoneInstance struct {
 	promMetrics *util.DNSMetrics
 }
 
-func NewZoneInstance(name string, zone config.Zone, metrics *util.DNSMetrics) (*ZoneInstance, error) {
+func NewZoneInstance(name string, zone schema.ZoneConfig, metrics *util.DNSMetrics) (*ZoneInstance, error) {
 	zi := ZoneInstance{
 		Name:        name,
 		baseLog:     util.Logger.With().Str("zone", name).Logger(),
@@ -54,11 +52,11 @@ func NewZoneInstance(name string, zone config.Zone, metrics *util.DNSMetrics) (*
 	return &zi, nil
 }
 
-// Initialize takes in a zone config and handles updating/populating the struct. It is called both when creating a new ZoneInstance and when reloading configuration
-func (zi *ZoneInstance) Initialize(zone config.Zone) error {
+// Initialize takes in a zone configOld and handles updating/populating the struct. It is called both when creating a new ZoneInstance and when reloading configuration
+func (zi *ZoneInstance) Initialize(zone schema.ZoneConfig) error {
 	zi.StaticRecords = zone.Records
-	zi.ForwardConfig = zone.Forward
-	zi.NoForward = zone.NoForward
+	zi.ForwardConfig = zone.ForwardConfig
+	zi.Forward = zone.ForwardEnabled
 	zi.Tailscale = zone.Tailscale
 	zi.RecursionEnabled = zone.RecursionEnabled
 
@@ -77,22 +75,12 @@ func (zi *ZoneInstance) Initialize(zone config.Zone) error {
 	return nil
 }
 
-// Populate reads in the various config things and ensures things are valid
+// Populate reads in the various configOld things and ensures things are valid
 func (zi *ZoneInstance) Populate() error {
-	// Validate the forward config
-	if !zi.NoForward {
-		err := config.ValidateForwardConfig(zi.ForwardConfig, zi.Name)
-		if err != nil {
-			return err
-		}
-
+	// Validate the forward configOld
+	if zi.Forward {
 		// Evenly distribute query load across forwarder servers
-		var servers []*string
-		for _, s := range slicesx.Interleave(zi.ForwardConfig.Ipv6Addresses, zi.ForwardConfig.Ipv4Addresses) {
-			sCopy := s
-			servers = append(servers, &sCopy)
-		}
-		zi.UpstreamRoundRobin, _ = roundrobin.New(servers...)
+		zi.UpstreamRoundRobin, _ = roundrobin.New(zi.ForwardConfig.Addresses...)
 	}
 
 	return nil
@@ -123,7 +111,7 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		}
 	}
 	reqNet := w.LocalAddr().Network()
-	if !zi.NoForward && zi.ForwardConfig != nil && !found {
+	if zi.Forward && zi.ForwardConfig != nil && !found {
 		if msg, ok := zi.HandleForward(req, reqNet); ok {
 			res = msg
 			found = true
@@ -158,7 +146,7 @@ func (zi *ZoneInstance) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 // || RESPONDER FUNCTIONS ||
 // ||=====================||
 
-// HandleRecords checks the static records config and answers accordingly
+// HandleRecords checks the static records configOld and answers accordingly
 func (zi *ZoneInstance) HandleRecords(q dns.Question) (*dns.Msg, bool) {
 	zi.qLog.Debug().Msgf("Handling query with Static Records (%s)", q.Name)
 	var (
@@ -173,21 +161,21 @@ func (zi *ZoneInstance) HandleRecords(q dns.Question) (*dns.Msg, bool) {
 		if recs, ok := zi.StaticRecords.A[subdomain]; ok {
 			found = true
 			for _, rec := range recs {
-				answers = append(answers, util.ARecord(q.Name, net.ParseIP(rec.GetAddress()), rec.GetTtl()))
+				answers = append(answers, util.ARecord(q.Name, net.ParseIP(rec.Address), rec.TTL))
 			}
 		}
 	case dns.TypeAAAA:
 		if recs, ok := zi.StaticRecords.AAAA[subdomain]; ok {
 			found = true
 			for _, rec := range recs {
-				answers = append(answers, util.AAAARecord(q.Name, net.ParseIP(rec.GetAddress()), rec.GetTtl()))
+				answers = append(answers, util.AAAARecord(q.Name, net.ParseIP(rec.Address), rec.TTL))
 			}
 		}
 	case dns.TypeCNAME:
 		if recs, ok := zi.StaticRecords.CNAME[subdomain]; ok {
 			found = true
 			for _, rec := range recs {
-				answers = append(answers, util.CnameRecord(q.Name, rec.GetTarget(), rec.GetTtl()))
+				answers = append(answers, util.CnameRecord(q.Name, rec.Target, rec.TTL))
 			}
 		}
 	}
@@ -217,7 +205,7 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 	)
 
 	sub, _ := strings.CutSuffix(q.Name, zi.Name)
-	if m, ok := strings.CutSuffix(sub, zi.Tailscale.MachinesSubdomain); ok {
+	if m, ok := strings.CutSuffix(sub, zi.Tailscale.MachineSubdomain); ok {
 		if mEntry, ok := zi.TSClient.FindMachine(m); ok {
 			zi.qLog.Debug().Msgf("Found machine entry: %s", m)
 			found = true
@@ -240,7 +228,7 @@ func (zi *ZoneInstance) HandleTailscale(q dns.Question) (*dns.Msg, bool) {
 
 			var targetFqdns []string
 			for _, targ := range cEntry.CNameTo {
-				targetFqdns = append(targetFqdns, fmt.Sprintf("%s%s%s", targ, zi.Tailscale.MachinesSubdomain, zi.Name))
+				targetFqdns = append(targetFqdns, fmt.Sprintf("%s%s%s", targ, zi.Tailscale.MachineSubdomain, zi.Name))
 			}
 
 			switch q.Qtype {
