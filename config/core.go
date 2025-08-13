@@ -1,4 +1,4 @@
-package schema
+package config
 
 type ServerConfigFile struct {
 	DefaultForwardConfig *ForwardConfig `yaml:"defaultForwardConfig" json:"defaultForwardConfig" toml:"defaultForwardConfig"`

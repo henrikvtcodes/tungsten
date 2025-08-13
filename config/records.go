@@ -1,4 +1,4 @@
-package schema
+package config
 
 type RecordsCollection struct {
 	A     map[string][]ARecord     `validate:"dive,keys,lowercase,endkeys" yaml:"A" json:"A" toml:"A"`

@@ -2,7 +2,7 @@ package server
 
 import (
 	"fmt"
-	"github.com/henrikvtcodes/tungsten/config/schema"
+	"github.com/henrikvtcodes/tungsten/config"
 	"net"
 	"strconv"
 	"strings"
@@ -18,9 +18,9 @@ import (
 type ZoneInstance struct {
 	Name string
 
-	StaticRecords *schema.RecordsCollection
+	StaticRecords *config.RecordsCollection
 
-	ForwardConfig      *schema.ForwardConfig
+	ForwardConfig      *config.ForwardConfig
 	Forward            bool
 	dnsClient          *dns.Client
 	UpstreamRoundRobin *roundrobin.RoundRobin[string]
@@ -28,7 +28,7 @@ type ZoneInstance struct {
 	RecursionEnabled bool
 	recursor         *RecursorWrapper
 
-	Tailscale *schema.TailscaleZoneConfig
+	Tailscale *config.TailscaleZoneConfig
 	TSClient  *tailscale.Tailscale
 
 	baseLog     zerolog.Logger
@@ -36,7 +36,7 @@ type ZoneInstance struct {
 	promMetrics *util.DNSMetrics
 }
 
-func NewZoneInstance(name string, zone schema.ZoneConfig, metrics *util.DNSMetrics) (*ZoneInstance, error) {
+func NewZoneInstance(name string, zone config.ZoneConfig, metrics *util.DNSMetrics) (*ZoneInstance, error) {
 	zi := ZoneInstance{
 		Name:        name,
 		baseLog:     util.Logger.With().Str("zone", name).Logger(),
@@ -53,7 +53,7 @@ func NewZoneInstance(name string, zone schema.ZoneConfig, metrics *util.DNSMetri
 }
 
 // Initialize takes in a zone configOld and handles updating/populating the struct. It is called both when creating a new ZoneInstance and when reloading configuration
-func (zi *ZoneInstance) Initialize(zone schema.ZoneConfig) error {
+func (zi *ZoneInstance) Initialize(zone config.ZoneConfig) error {
 	zi.StaticRecords = zone.Records
 	zi.ForwardConfig = zone.ForwardConfig
 	zi.Forward = zone.ForwardEnabled

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/creasty/defaults"
 	"github.com/ghodss/yaml"
-	"github.com/henrikvtcodes/tungsten/config/schema"
 	"github.com/pelletier/go-toml/v2"
 	"io"
 	"os"
@@ -20,13 +19,13 @@ var (
 )
 
 type WrappedServerConfig struct {
-	DNSConfig  *schema.ServerConfigFile
+	DNSConfig  *ServerConfigFile
 	SocketPath string
 	ConfigPath string
 }
 
-func LoadFromPath(fPath string) (*schema.ServerConfigFile, error) {
-	var config *schema.ServerConfigFile
+func LoadFromPath(fPath string) (*ServerConfigFile, error) {
+	var config *ServerConfigFile
 	if err := defaults.Set(&config); err != nil {
 		err = errors.Join(fmt.Errorf("failed to set default"), err)
 		return nil, err
