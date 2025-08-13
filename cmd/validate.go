@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"github.com/henrikvtcodes/tungsten/server"
 	"github.com/rs/zerolog"
@@ -36,11 +35,8 @@ func newValidateCommand() *cobra.Command {
 				fmt.Println(chalk.Blue.NewStyle().WithTextStyle(chalk.Bold).Style(fmt.Sprintf("Loading configuration from %s", absConfigPath)))
 			}
 
-			conf, err := config.LoadFromPath(context.Background(), absConfigPath)
+			conf, err := config.LoadFromPath(absConfigPath)
 			if err != nil {
-				// The error is printed out separately because Pkl errors contain some formatting information that
-				// zerolog does not play nice with. This formatting information helps the end-user understand the source
-				// of the configuration error much easier
 				println(err.Error())
 				util.Logger.Fatal().Msg("Error checking config")
 			} else {

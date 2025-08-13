@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"github.com/henrikvtcodes/tungsten/config"
 	"github.com/henrikvtcodes/tungsten/server"
 	"github.com/henrikvtcodes/tungsten/util"
@@ -23,7 +22,7 @@ func newServeCmd() *cobra.Command {
 			if err != nil {
 				util.Logger.Fatal().Err(err).Msg("Could not form absolute file path for config")
 			}
-			conf, err := config.LoadFromPath(context.Background(), absConfigPath)
+			conf, err := config.LoadFromPath(absConfigPath)
 			if err != nil {
 				// The error is printed out separately because Pkl errors contain some formatting information that
 				// zerolog does not play nice with. This formatting information helps the end-user understand the source
