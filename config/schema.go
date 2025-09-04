@@ -1,5 +1,11 @@
 package config
 
+import (
+	"errors"
+	"fmt"
+	"github.com/creasty/defaults"
+)
+
 type ServerConfigFile struct {
 	DefaultForwardConfig *ForwardConfig `yaml:"defaultForwardConfig" json:"defaultForwardConfig" toml:"defaultForwardConfig"`
 	EnableTailscale      bool           `default:"false" yaml:"enableTailscale" json:"enableTailscale" toml:"enableTailscale"`
@@ -27,4 +33,15 @@ type TailscaleZoneConfig struct {
 	MachineTtl       uint32 `default:"3600" validate:"gt=0" yaml:"machineTTL" json:"machineTtl" toml:"machineTTL"`
 	CnameSubdomain   string `default:"." validate:"lowercase,subdomain_part" yaml:"cnameSubdomain" json:"cnameSubdomain" toml:"cnameSubdomain"`
 	CnameTtl         uint32 `default:"3600" validate:"gt=0" yaml:"cnameTTL" json:"cnameTTL" toml:"cnameTTL"`
+}
+
+func (cfg *ServerConfigFile) InitializeAndSetDefaults() error {
+	cfg.DefaultForwardConfig = new(ForwardConfig)
+
+	if err := defaults.Set(cfg); err != nil {
+		err = errors.Join(fmt.Errorf("failed to set default"), err)
+		return err
+	}
+
+	return nil
 }

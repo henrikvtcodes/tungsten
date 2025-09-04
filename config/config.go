@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/creasty/defaults"
 	"github.com/ghodss/yaml"
 	"github.com/pelletier/go-toml/v2"
 	"io"
@@ -25,9 +24,8 @@ type WrappedServerConfig struct {
 }
 
 func LoadFromPath(fPath string) (*ServerConfigFile, error) {
-	var config *ServerConfigFile
-	if err := defaults.Set(&config); err != nil {
-		err = errors.Join(fmt.Errorf("failed to set default"), err)
+	var config = new(ServerConfigFile)
+	if err := config.InitializeAndSetDefaults(); err != nil {
 		return nil, err
 	}
 
