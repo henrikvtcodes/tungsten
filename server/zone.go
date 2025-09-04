@@ -77,7 +77,7 @@ func (zi *ZoneInstance) Initialize(zone config.ZoneConfig) error {
 
 // Populate reads in the various configOld things and ensures things are valid
 func (zi *ZoneInstance) Populate() error {
-	// Validate the forward configOld
+	// Validate the forward config
 	if zi.Forward {
 		// Evenly distribute query load across forwarder servers
 		zi.UpstreamRoundRobin, _ = roundrobin.New(zi.ForwardConfig.Addresses...)
