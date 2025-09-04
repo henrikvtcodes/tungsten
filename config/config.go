@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/carlmjohnson/truthy"
 )
@@ -46,7 +47,8 @@ func LoadFromPath(fPath string) (*ServerConfigFile, error) {
 	}
 
 	// Multi format file reading!!
-	switch path.Ext(fPath) {
+	pfx, _ := strings.CutPrefix(path.Ext(fPath), ".")
+	switch pfx {
 	case "toml":
 		if err := toml.Unmarshal(fileBytes, config); err != nil {
 			err = errors.Join(fmt.Errorf("failed to unmarshal toml"), err)
