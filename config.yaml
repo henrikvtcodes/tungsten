@@ -1,0 +1,8 @@
+enableTailscale: true
+
+port: 5301
+
+zones:
+  - name: unicycl.ing.
+    tailscale:
+      enable: true

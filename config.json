@@ -1,0 +1,5 @@
+{
+  "enableTailscale": true,
+  "port": 1053,
+  "zones": []
+}
